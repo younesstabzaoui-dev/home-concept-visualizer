@@ -16,8 +16,8 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Middlewares
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? ['https://homeconcept-france.fr', 'https://visualizer.homeconcept-france.fr']
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',')
     : ['http://localhost:5173', 'http://localhost:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-password'],
