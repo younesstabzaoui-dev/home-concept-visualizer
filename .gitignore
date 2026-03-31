@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Environment variables (NE JAMAIS COMMIT)
+.env
+backend/.env
+frontend/.env
+
+# Build
+frontend/dist/
+frontend/.vite/
+
+# Uploads temporaires
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

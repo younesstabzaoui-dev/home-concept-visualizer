@@ -1,0 +1,57 @@
+[
+  {
+    "id": "hc-can-001",
+    "name": "Canapé Athena 3 places",
+    "reference": "HC-CAN-001",
+    "category": "canape",
+    "image": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&q=80",
+    "lengthCm": 280,
+    "depthCm": 95,
+    "heightCm": 82,
+    "description": "Canapé 3 places, tissu bouclette beige, pieds chêne naturel. Design scandinave épuré, confort premium."
+  },
+  {
+    "id": "hc-tbl-001",
+    "name": "Table basse Oria",
+    "reference": "HC-TBL-001",
+    "category": "table_basse",
+    "image": "https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=600&q=80",
+    "lengthCm": 120,
+    "depthCm": 60,
+    "heightCm": 42,
+    "description": "Table basse rectangulaire, plateau chêne massif, structure métal noir mat. Format 120×60cm."
+  },
+  {
+    "id": "hc-trp-001",
+    "name": "Table à manger Lumino 6 places",
+    "reference": "HC-TRP-001",
+    "category": "table_repas",
+    "image": "https://images.unsplash.com/photo-1617806118233-18e1de247200?w=600&q=80",
+    "lengthCm": 180,
+    "depthCm": 90,
+    "heightCm": 76,
+    "description": "Table à manger 6 couverts, plateau céramique effet marbre blanc, pieds métal noir. Format 180×90cm."
+  },
+  {
+    "id": "hc-cha-001",
+    "name": "Chaise Sena",
+    "reference": "HC-CHA-001",
+    "category": "chaise",
+    "image": "https://images.unsplash.com/photo-1503602642458-232111445657?w=600&q=80",
+    "lengthCm": 45,
+    "depthCm": 52,
+    "heightCm": 86,
+    "description": "Chaise design assise tissu taupe, structure chêne. Empilable. Hauteur assise 46cm."
+  },
+  {
+    "id": "hc-lit-001",
+    "name": "Lit Noa 160×200",
+    "reference": "HC-LIT-001",
+    "category": "lit",
+    "image": "https://images.unsplash.com/photo-1505693314120-0d443867891c?w=600&q=80",
+    "lengthCm": 214,
+    "depthCm": 172,
+    "heightCm": 105,
+    "description": "Lit double 160×200, tête de lit capitonnée en velours gris, pieds chêne. Structure bois massif."
+  }
+]
