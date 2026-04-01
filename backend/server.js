@@ -30,9 +30,11 @@ app.use('/uploads', express.static(uploadsDir));
 // Routes
 const productsRouter = require('./routes/products');
 const generateRouter = require('./routes/generate');
+const generate3dRouter = require('./routes/generate3d');
 
 app.use('/api/products', productsRouter);
 app.use('/api/generate', generateRouter);
+app.use('/api/generate-3d', generate3dRouter);
 
 // Route santé
 app.get('/api/health', (req, res) => {

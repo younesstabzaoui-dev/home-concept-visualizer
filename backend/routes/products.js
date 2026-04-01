@@ -118,7 +118,7 @@ router.put('/:id', requireAdmin, (req, res) => {
       return res.status(404).json({ error: 'Produit non trouvé.' });
     }
 
-    const { name, reference, category, image, lengthCm, depthCm, heightCm, description } = req.body;
+    const { name, reference, category, image, lengthCm, depthCm, heightCm, description, glbUrl } = req.body;
 
     if (category) {
       const validCategories = ['canape', 'table_basse', 'table_repas', 'chaise', 'lit'];
@@ -139,6 +139,7 @@ router.put('/:id', requireAdmin, (req, res) => {
       ...(depthCm && { depthCm: Number(depthCm) }),
       ...(heightCm && { heightCm: Number(heightCm) }),
       ...(description !== undefined && { description }),
+      ...(glbUrl !== undefined && { glbUrl }),
     };
 
     writeProducts(products);

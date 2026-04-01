@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, Check, AlertCircle, Loader2 } from 'lucide-react'
+import { ArrowLeft, Check, AlertCircle, Loader2, Box } from 'lucide-react'
 import { checkFitWarnings } from '../utils/proportionCalculator.js'
 import API_BASE from '../config'
+import Model3DViewer from './Model3DViewer.jsx'
 
 const CATEGORIES = [
   { id: 'all', label: 'Tous' },
@@ -124,6 +125,7 @@ export default function ProductCatalog({ roomDimensions, onComplete, onBack }) {
   const [loadError, setLoadError] = useState(null)
   const [activeCategory, setActiveCategory] = useState('all')
   const [selected, setSelected] = useState([])
+  const [viewing3D, setViewing3D] = useState(null)
 
   useEffect(() => {
     fetch(API_BASE + '/api/products')
@@ -263,11 +265,29 @@ export default function ProductCatalog({ roomDimensions, onComplete, onBack }) {
                 <p style={styles.cardDims}>
                   {product.lengthCm}×{product.depthCm}×{product.heightCm} cm
                 </p>
+                {product.glbUrl && (
+                  <button
+                    style={{
+                      marginTop: '8px', width: '100%', padding: '6px 10px',
+                      fontSize: '12px', fontWeight: '500', borderRadius: '6px',
+                      border: '1.5px solid var(--color-black)', backgroundColor: 'transparent',
+                      color: 'var(--color-black)', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                    }}
+                    onClick={e => { e.stopPropagation(); setViewing3D(product) }}
+                    aria-label={`Voir ${product.name} en 3D`}
+                  >
+                    <Box size={12} />
+                    Voir en 3D
+                  </button>
+                )}
               </div>
             </div>
           )
         })}
       </div>
+
+      {viewing3D && <Model3DViewer product={viewing3D} onClose={() => setViewing3D(null)} />}
 
       <div style={styles.btnRow}>
         <button style={styles.backBtn} onClick={onBack} aria-label="Retour aux dimensions">

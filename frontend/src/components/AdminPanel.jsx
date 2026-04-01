@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, AlertCircle, Loader2, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, AlertCircle, Loader2, ChevronRight, Box, CheckCircle2 } from 'lucide-react'
 import AdminProductForm from './AdminProductForm.jsx'
+import Model3DViewer from './Model3DViewer.jsx'
 import API_BASE from '../config'
 
 const CATEGORY_LABELS = {
@@ -127,6 +128,8 @@ export default function AdminPanel({ adminPassword }) {
   const [editingProduct, setEditingProduct] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [generating3d, setGenerating3d] = useState(null) // product.id en cours
+  const [viewing3D, setViewing3D] = useState(null)
 
   const headers = {
     'Content-Type': 'application/json',
@@ -179,6 +182,38 @@ export default function AdminPanel({ adminPassword }) {
       setError('Erreur lors de la suppression.')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleGenerate3D = async (product) => {
+    if (!product.image) {
+      setError(`${product.name} n'a pas d'image — ajoutez une image d'abord.`)
+      return
+    }
+    setGenerating3d(product.id)
+    try {
+      // 1. Appel TRELLIS pour générer le GLB
+      const genRes = await fetch(API_BASE + '/api/generate-3d', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ imageUrl: product.image }),
+      })
+      const genData = await genRes.json()
+      if (!genRes.ok) throw new Error(genData.error || 'Erreur génération 3D')
+
+      // 2. Sauvegarde l'URL du GLB dans la fiche produit
+      const saveRes = await fetch(API_BASE + `/api/products/${product.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ glbUrl: genData.glbUrl }),
+      })
+      if (!saveRes.ok) throw new Error('Erreur sauvegarde GLB')
+
+      await loadProducts()
+    } catch (err) {
+      setError('Erreur 3D : ' + err.message)
+    } finally {
+      setGenerating3d(null)
     }
   }
 
@@ -293,6 +328,28 @@ export default function AdminPanel({ adminPassword }) {
                     <td style={styles.td}>
                       <div style={styles.actionBtns}>
                         <button
+                          style={{
+                            ...styles.editBtn,
+                            backgroundColor: product.glbUrl ? '#E8F5E9' : 'var(--color-gray-100)',
+                            borderColor: product.glbUrl ? '#C8E6C9' : 'var(--color-gray-200)',
+                            color: product.glbUrl ? '#2E7D32' : 'var(--color-gray-600)',
+                            opacity: generating3d === product.id ? 0.6 : 1,
+                            cursor: generating3d === product.id ? 'wait' : 'pointer',
+                            minWidth: '28px',
+                          }}
+                          onClick={() => product.glbUrl ? setViewing3D(product) : handleGenerate3D(product)}
+                          disabled={generating3d === product.id}
+                          aria-label={product.glbUrl ? `Voir ${product.name} en 3D` : `Générer 3D pour ${product.name}`}
+                          title={product.glbUrl ? 'Voir en 3D' : 'Générer 3D (~30s, $0.02)'}
+                        >
+                          {generating3d === product.id
+                            ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                            : product.glbUrl
+                              ? <CheckCircle2 size={15} />
+                              : <Box size={15} />
+                          }
+                        </button>
+                        <button
                           style={styles.editBtn}
                           onClick={() => handleEdit(product)}
                           aria-label={`Modifier ${product.name}`}
@@ -317,6 +374,8 @@ export default function AdminPanel({ adminPassword }) {
           </table>
         </div>
       )}
+
+      {viewing3D && <Model3DViewer product={viewing3D} onClose={() => setViewing3D(null)} />}
 
       {deleteTarget && (
         <div
