@@ -142,14 +142,14 @@ export default function RenderResult({ originalImage, generatedImage, selectedPr
             <ReactCompareSliderImage
               src={originalImage}
               alt="Pièce vide — avant"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           }
           itemTwo={
             <ReactCompareSliderImage
               src={generatedImage}
               alt="Pièce meublée — après rendu Home Concept"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           }
           style={sliderStyle}
