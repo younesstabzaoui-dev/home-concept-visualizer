@@ -168,7 +168,7 @@ export default function FloorPlan() {
 
       <div style={styles.layout}>
         {/* Sidebar */}
-        <aside style={styles.sidebar}>
+        <aside style={{ ...styles.sidebar, order: isMobile ? 2 : 1 }}>
           {/* Dimensions pièce */}
           <div style={styles.sideSection}>
             <p style={styles.sideLabel}>Dimensions de la pièce</p>
@@ -255,7 +255,7 @@ export default function FloorPlan() {
         </aside>
 
         {/* Canvas */}
-        <div style={styles.canvasWrap} ref={containerRef}>
+        <div style={{ ...styles.canvasWrap, order: isMobile ? 1 : 2 }} ref={containerRef}>
           <div style={styles.canvasCard}>
             {/* Barre de zoom */}
             <div style={styles.zoomBar}>
@@ -319,6 +319,7 @@ export default function FloorPlan() {
                     draggable
                     onClick={() => setSelectedId(item.id)}
                     onTap={() => setSelectedId(item.id)}
+                    onDragStart={e => { e.cancelBubble = true }}
                     onDragEnd={e => handleDragEnd(item.id, e)}
                     onTransformEnd={e => handleTransformEnd(item.id, e)}
                   >
@@ -412,7 +413,7 @@ const styles = {
   brandName: { fontFamily: 'var(--font-serif)', fontSize: '17px', fontWeight: '700', letterSpacing: '0.1em', color: '#0A0A0A' },
   brandSub: { fontSize: '10px', color: '#8B7355', letterSpacing: '0.15em', textTransform: 'uppercase' },
 
-  layout: { maxWidth: '1280px', margin: '0 auto', padding: 'clamp(12px, 3vw, 24px)', display: 'flex', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap' },
+  layout: { maxWidth: '1280px', margin: '0 auto', padding: 'clamp(12px, 3vw, 24px)', display: 'flex', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap', flexDirection: 'row' },
 
   sidebar: { width: '100%', maxWidth: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '12px' },
   sideSection: { backgroundColor: '#FFFFFF', border: '1px solid #E5E5E3', borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' },
