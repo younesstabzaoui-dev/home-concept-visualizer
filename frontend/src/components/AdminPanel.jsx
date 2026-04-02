@@ -198,7 +198,7 @@ export default function AdminPanel({ adminPassword }) {
       const genRes = await fetch(API_BASE + '/api/generate-3d', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ imageUrl: product.image }),
+        body: JSON.stringify({ imageUrl: product.image, productId: product.id }),
       })
       const genData = await genRes.json()
       if (!genRes.ok) throw new Error(genData.error || 'Erreur génération 3D')

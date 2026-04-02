@@ -37,6 +37,24 @@ app.use('/api/products', productsRouter);
 app.use('/api/generate', generateRouter);
 app.use('/api/generate-3d', generate3dRouter);
 
+// Servir les fichiers GLB stockés dans MongoDB
+app.get('/api/glb/:productId', async (req, res) => {
+  try {
+    const GlbFile = require('./models/GlbFile');
+    const glb = await GlbFile.findOne({ productId: req.params.productId });
+    if (!glb) return res.status(404).json({ error: 'GLB non trouvé.' });
+    res.set({
+      'Content-Type': 'model/gltf-binary',
+      'Content-Length': glb.size || glb.data.length,
+      'Cache-Control': 'public, max-age=31536000',
+    });
+    res.send(glb.data);
+  } catch (err) {
+    console.error('[glb] Erreur:', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
 // Vérification mot de passe admin
 app.post('/api/admin/verify', (req, res) => {
   const pwd = req.headers['x-admin-password']

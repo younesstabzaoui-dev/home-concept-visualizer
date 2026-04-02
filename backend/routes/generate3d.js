@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { fal } = require('@fal-ai/client');
+const mongoose = require('mongoose');
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -13,11 +14,10 @@ function requireAdmin(req, res, next) {
 }
 
 // POST /api/generate-3d
-// Body: { imageUrl: string }
-// Appelle fal.ai TRELLIS pour générer un fichier 3D GLB depuis une photo de meuble
+// Body: { imageUrl: string, productId: string }
 router.post('/', requireAdmin, async (req, res) => {
   try {
-    const { imageUrl } = req.body;
+    const { imageUrl, productId } = req.body;
 
     if (!imageUrl) {
       return res.status(400).json({ error: 'imageUrl requis dans le body.' });
@@ -42,16 +42,46 @@ router.post('/', requireAdmin, async (req, res) => {
       logs: false,
     });
 
-    // fal.ai retourne model_file soit comme string soit comme objet { url, file_name, ... }
     const raw = result?.data?.model_file || result?.data?.glb || result?.data?.model_mesh;
-    const glbUrl = typeof raw === 'string' ? raw : raw?.url;
+    const falGlbUrl = typeof raw === 'string' ? raw : raw?.url;
 
-    if (!glbUrl) {
+    if (!falGlbUrl) {
       console.error('[generate3d] Réponse inattendue fal.ai:', JSON.stringify(result?.data));
-      return res.status(500).json({ error: 'GLB non retourné par fal.ai. Vérifiez la clé FAL_KEY.' });
+      return res.status(500).json({ error: 'GLB non retourné par fal.ai.' });
     }
 
-    console.log('[generate3d] GLB généré avec succès:', glbUrl.substring(0, 80));
+    console.log('[generate3d] GLB généré, téléchargement en cours...');
+
+    // Télécharger le GLB et le stocker dans MongoDB pour qu'il ne disparaisse jamais
+    let glbUrl = falGlbUrl;
+
+    if (productId && mongoose.connection.readyState === 1) {
+      try {
+        const response = await fetch(falGlbUrl);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const GlbFile = require('../models/GlbFile');
+
+          await GlbFile.findOneAndUpdate(
+            { productId },
+            { productId, data: buffer, size: buffer.length },
+            { upsert: true }
+          );
+
+          // URL permanente qui pointe vers notre propre backend
+          const backendUrl = `${req.protocol}://${req.get('host')}`;
+          glbUrl = `${backendUrl}/api/glb/${productId}`;
+
+          console.log(`[generate3d] GLB sauvegardé dans MongoDB (${(buffer.length / 1024).toFixed(0)} KB) → ${glbUrl}`);
+        } else {
+          console.warn('[generate3d] Impossible de télécharger le GLB fal.ai, on garde l\'URL temporaire');
+        }
+      } catch (dlErr) {
+        console.warn('[generate3d] Erreur téléchargement GLB:', dlErr.message, '— on garde l\'URL fal.ai');
+      }
+    }
+
     res.json({ glbUrl });
 
   } catch (err) {
