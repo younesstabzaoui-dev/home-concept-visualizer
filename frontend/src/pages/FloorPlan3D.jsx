@@ -8,34 +8,29 @@ import API_BASE from '../config'
 
 // ─── Fenêtre décorative sur un mur ───────────────────────────────────────────
 function WindowDecoration({ position, rotation, w = 1.2, h = 0.9 }) {
-  const frameT = 0.04
+  const frameT = 0.05
   return (
     <group position={position} rotation={rotation}>
-      {/* Cadre haut */}
-      <mesh position={[0, h / 2, 0]}>
-        <boxGeometry args={[w, frameT, 0.06]} />
-        <meshStandardMaterial color="#FFFFFF" />
+      {/* Fond sombre (recess dans le mur) pour contraste */}
+      <mesh position={[0, 0, -0.02]}>
+        <planeGeometry args={[w + 0.05, h + 0.05]} />
+        <meshStandardMaterial color="#6A8090" />
       </mesh>
-      {/* Cadre bas */}
-      <mesh position={[0, -h / 2, 0]}>
-        <boxGeometry args={[w, frameT, 0.06]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-      {/* Cadre gauche */}
-      <mesh position={[-w / 2, 0, 0]}>
-        <boxGeometry args={[frameT, h, 0.06]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-      {/* Cadre droit */}
-      <mesh position={[w / 2, 0, 0]}>
-        <boxGeometry args={[frameT, h, 0.06]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-      {/* Vitre */}
+      {/* Vitre bleu-ciel */}
       <mesh position={[0, 0, 0.01]}>
         <planeGeometry args={[w - frameT * 2, h - frameT * 2]} />
-        <meshStandardMaterial color="#B8D4E8" transparent opacity={0.35} metalness={0.1} roughness={0.0} />
+        <meshStandardMaterial color="#A8CCE0" transparent opacity={0.6} metalness={0.15} roughness={0.0} />
       </mesh>
+      {/* Cadre haut */}
+      <mesh position={[0, h / 2, 0.02]}><boxGeometry args={[w, frameT, 0.05]} /><meshStandardMaterial color="#E8E8E8" /></mesh>
+      {/* Cadre bas */}
+      <mesh position={[0, -h / 2, 0.02]}><boxGeometry args={[w, frameT, 0.05]} /><meshStandardMaterial color="#E8E8E8" /></mesh>
+      {/* Cadre gauche */}
+      <mesh position={[-w / 2, 0, 0.02]}><boxGeometry args={[frameT, h, 0.05]} /><meshStandardMaterial color="#E8E8E8" /></mesh>
+      {/* Cadre droit */}
+      <mesh position={[w / 2, 0, 0.02]}><boxGeometry args={[frameT, h, 0.05]} /><meshStandardMaterial color="#E8E8E8" /></mesh>
+      {/* Croisillon central */}
+      <mesh position={[0, 0, 0.02]}><boxGeometry args={[w, frameT * 0.6, 0.04]} /><meshStandardMaterial color="#E8E8E8" /></mesh>
     </group>
   )
 }
@@ -46,51 +41,37 @@ function DoorDecoration({ position, rotation, w = 0.9, h = 2.1, isDouble = false
   const doorW = isDouble ? w / 2 : w
   return (
     <group position={position} rotation={rotation}>
-      {/* Montant gauche */}
-      <mesh position={[-w / 2 - frameT / 2, h / 2, 0]}>
-        <boxGeometry args={[frameT, h + frameT, 0.08]} />
-        <meshStandardMaterial color="#FFFFFF" />
+      {/* Fond sombre pour contraste */}
+      <mesh position={[0, h / 2, -0.02]}>
+        <planeGeometry args={[w + 0.1, h + 0.08]} />
+        <meshStandardMaterial color="#4A4A4A" />
       </mesh>
-      {/* Montant droit */}
-      <mesh position={[w / 2 + frameT / 2, h / 2, 0]}>
-        <boxGeometry args={[frameT, h + frameT, 0.08]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-      {/* Linteau haut */}
-      <mesh position={[0, h + frameT / 2, 0]}>
-        <boxGeometry args={[w + frameT * 2, frameT, 0.08]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-      {/* Panneau porte */}
+      {/* Panneau porte (bois chaud) */}
       {isDouble ? (
         <>
-          <mesh position={[-doorW / 2, h / 2, 0.02]}>
-            <planeGeometry args={[doorW - 0.02, h - 0.02]} />
-            <meshStandardMaterial color="#E8DDD0" roughness={0.85} />
-          </mesh>
-          <mesh position={[doorW / 2, h / 2, 0.02]}>
-            <planeGeometry args={[doorW - 0.02, h - 0.02]} />
-            <meshStandardMaterial color="#E8DDD0" roughness={0.85} />
-          </mesh>
+          <mesh position={[-doorW / 2, h / 2, 0.01]}><planeGeometry args={[doorW - 0.03, h - 0.02]} /><meshStandardMaterial color="#C8A87A" roughness={0.85} /></mesh>
+          <mesh position={[doorW / 2, h / 2, 0.01]}><planeGeometry args={[doorW - 0.03, h - 0.02]} /><meshStandardMaterial color="#C8A87A" roughness={0.85} /></mesh>
         </>
       ) : (
-        <mesh position={[0, h / 2, 0.02]}>
-          <planeGeometry args={[w - 0.02, h - 0.02]} />
-          <meshStandardMaterial color="#E8DDD0" roughness={0.85} />
-        </mesh>
+        <mesh position={[0, h / 2, 0.01]}><planeGeometry args={[w - 0.03, h - 0.02]} /><meshStandardMaterial color="#C8A87A" roughness={0.85} /></mesh>
       )}
+      {/* Montant gauche */}
+      <mesh position={[-w / 2 - frameT / 2, h / 2, 0.03]}><boxGeometry args={[frameT, h + frameT, 0.06]} /><meshStandardMaterial color="#E0E0E0" /></mesh>
+      {/* Montant droit */}
+      <mesh position={[w / 2 + frameT / 2, h / 2, 0.03]}><boxGeometry args={[frameT, h + frameT, 0.06]} /><meshStandardMaterial color="#E0E0E0" /></mesh>
+      {/* Linteau haut */}
+      <mesh position={[0, h + frameT / 2, 0.03]}><boxGeometry args={[w + frameT * 2, frameT, 0.06]} /><meshStandardMaterial color="#E0E0E0" /></mesh>
       {/* Poignée */}
-      <mesh position={[isDouble ? -0.08 : w / 2 - 0.12, h / 2, 0.06]}>
-        <sphereGeometry args={[0.03, 8, 8]} />
-        <meshStandardMaterial color="#C0A060" metalness={0.8} roughness={0.2} />
+      <mesh position={[isDouble ? -0.08 : w / 2 - 0.12, h / 2, 0.07]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.12, 8]} rotation={[0, 0, Math.PI / 2]} />
+        <meshStandardMaterial color="#B8922A" metalness={0.9} roughness={0.1} />
       </mesh>
     </group>
   )
 }
 
 // ─── Pièce 3D ────────────────────────────────────────────────────────────────
-function Room({ width, depth, floorType, floorColor, wallColor, openings }) {
-  const wallH = 2.8
+function Room({ width, depth, wallH, floorType, floorColor, wallColor, openings }) {
   const wallT = 0.05
 
   const floorRoughness = floorType === 'carrelage' ? 0.15 : 0.85
@@ -233,7 +214,7 @@ function FloorPlane({ onFloorClick, roomW, roomD }) {
 }
 
 // ─── Scène complète ──────────────────────────────────────────────────────────
-function Scene({ roomW, roomD, placedItems, selectedId, onSelectItem, onMoveItem, onPlaceItem, placing, floorType, floorColor, wallColor, openings }) {
+function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onMoveItem, onPlaceItem, placing, floorType, floorColor, wallColor, openings }) {
   const handleFloorClick = (e) => {
     if (placing) {
       e.stopPropagation()
@@ -254,7 +235,7 @@ function Scene({ roomW, roomD, placedItems, selectedId, onSelectItem, onMoveItem
         shadow-camera-top={10} shadow-camera-bottom={-10}
       />
       <Environment preset="apartment" />
-      <Room width={roomW} depth={roomD} floorType={floorType} floorColor={floorColor} wallColor={wallColor} openings={openings} />
+      <Room width={roomW} depth={roomD} wallH={wallH} floorType={floorType} floorColor={floorColor} wallColor={wallColor} openings={openings} />
       <FloorPlane onFloorClick={handleFloorClick} roomW={roomW} roomD={roomD} />
       <Suspense fallback={null}>
         {placedItems.map(item => (
@@ -290,6 +271,7 @@ export default function FloorPlan3D() {
   const [selectedId, setSelectedId] = useState(null)
   const [placing, setPlacing] = useState(null)
   const [sidebarTab, setSidebarTab] = useState('meubles')
+  const [wallH, setWallH] = useState(2.5)
 
   // Personnalisation
   const [floorType, setFloorType] = useState('parquet')
@@ -370,11 +352,12 @@ export default function FloorPlan3D() {
         {/* Dimensions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ color: '#888', fontSize: '13px' }}>Pièce :</span>
-          {[['L', roomW, setRoomW], ['P', roomD, setRoomD]].map(([label, val, setter]) => (
+          {[['L', roomW, setRoomW], ['P', roomD, setRoomD], ['H', wallH, setWallH]].map(([label, val, setter]) => (
             <label key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#aaa', fontSize: '13px' }}>
               {label}
               <input type="number" min={2} max={15} step={0.5} value={val}
-                onChange={e => setter(Math.max(2, Math.min(15, Number(e.target.value) || 2)))}
+                onChange={e => setter(Math.max(label === 'H' ? 2 : 2, Math.min(label === 'H' ? 4 : 15, Number(e.target.value) || 2)))}
+                step={label === 'H' ? 0.1 : 0.5}
                 style={inputStyle}
               />
               <span style={{ color: '#666' }}>m</span>
@@ -411,7 +394,7 @@ export default function FloorPlan3D() {
           )}
           <Canvas shadows camera={{ position: [0, 5, 8], fov: 50 }} style={{ backgroundColor: '#D8D4CE' }}>
             <Scene
-              roomW={roomW} roomD={roomD}
+              roomW={roomW} roomD={roomD} wallH={wallH}
               placedItems={placedItems} selectedId={selectedId}
               onSelectItem={setSelectedId} onMoveItem={(id, pos) => setPlacedItems(prev => prev.map(i => i.id === id ? { ...i, position: pos } : i))}
               onPlaceItem={handlePlaceItem} placing={placing}

@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const mongoose = require('mongoose');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -63,6 +64,19 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.method} ${req.path} introuvable.` });
 });
+
+// Connexion MongoDB
+if (process.env.MONGODB_URI) {
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(async () => {
+      console.log('  MongoDB: Connecté ✓');
+      const { seedProducts } = require('./services/productSeeder');
+      await seedProducts();
+    })
+    .catch(err => console.error('  MongoDB: Erreur connexion:', err.message));
+} else {
+  console.log('  MongoDB: MONGODB_URI non défini — les données ne persisteront pas entre les déploiements');
+}
 
 app.listen(PORT, () => {
   console.log(`\n Home Concept Visualizer — Backend`);
