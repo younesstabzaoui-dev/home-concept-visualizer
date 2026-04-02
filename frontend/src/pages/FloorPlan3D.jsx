@@ -273,13 +273,16 @@ export default function FloorPlan3D() {
   const [loadingProducts, setLoadingProducts] = useState(true)
   const [roomW, setRoomW] = useState(5)
   const [roomD, setRoomD] = useState(4)
+  const [wallH, setWallH] = useState(2.5)
+  // Inputs string séparés pour éviter crash Three.js pendant la saisie
+  const [roomWInput, setRoomWInput] = useState('5')
+  const [roomDInput, setRoomDInput] = useState('4')
+  const [wallHInput, setWallHInput] = useState('2.5')
   const [placedItems, setPlacedItems] = useState([])
   const [selectedId, setSelectedId] = useState(null)
   const [placing, setPlacing] = useState(null)
   const [sidebarTab, setSidebarTab] = useState('meubles')
-  const [wallH, setWallH] = useState(2.5)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [showDimensions, setShowDimensions] = useState(false)
 
   // Personnalisation
   const [floorType, setFloorType] = useState('parquet')
@@ -445,19 +448,25 @@ export default function FloorPlan3D() {
             <div style={{ borderTop: '1px solid #222', paddingTop: '12px' }}>
               <p style={{ color: '#888', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Dimensions</p>
               <div style={{ display: 'flex', gap: '8px' }}>
-                {[['L', roomW, setRoomW, 2, 15], ['P', roomD, setRoomD, 2, 15], ['H', wallH, setWallH, 2, 4]].map(([label, val, setter, min, max]) => (
+                {[['L', roomWInput, setRoomWInput, setRoomW, 2, 15], ['P', roomDInput, setRoomDInput, setRoomD, 2, 15], ['H', wallHInput, setWallHInput, setWallH, 2, 4]].map(([label, inputVal, setInput, setNum, min, max]) => (
                   <label key={label} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#aaa', fontSize: '12px', flex: 1 }}>
                     {label}
                     <input
                       type="text" inputMode="decimal"
-                      value={val}
+                      value={inputVal}
                       onChange={e => {
                         const raw = e.target.value
-                        if (raw === '' || raw === '.' || /^\d*\.?\d*$/.test(raw)) setter(raw)
+                        if (raw === '' || raw === '.' || /^\d*\.?\d*$/.test(raw)) {
+                          setInput(raw)
+                          const n = parseFloat(raw)
+                          if (!isNaN(n) && n >= min && n <= max) setNum(n)
+                        }
                       }}
                       onBlur={e => {
                         const n = parseFloat(e.target.value)
-                        setter(isNaN(n) ? min : Math.max(min, Math.min(max, n)))
+                        const clamped = isNaN(n) ? min : Math.max(min, Math.min(max, n))
+                        setNum(clamped)
+                        setInput(String(clamped))
                       }}
                       style={{ ...inputStyle, width: '100%', flex: 1 }}
                     />
@@ -563,10 +572,18 @@ export default function FloorPlan3D() {
             <div style={{
               position: 'absolute', top: '12px', left: '50%', transform: 'translateX(-50%)',
               backgroundColor: 'rgba(0,0,0,0.85)', color: '#fff', padding: '8px 14px',
-              borderRadius: '8px', fontSize: '12px', zIndex: 10, pointerEvents: 'none',
-              maxWidth: '80%', textAlign: 'center',
+              borderRadius: '8px', fontSize: '12px', zIndex: 10,
+              maxWidth: '85%', textAlign: 'center',
+              display: 'flex', alignItems: 'center', gap: '10px',
             }}>
-              Touchez pour placer <strong>{placing.name}</strong>
+              <span style={{ pointerEvents: 'none' }}>Touchez pour placer <strong>{placing.name}</strong></span>
+              <button onClick={() => setPlacing(null)} style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)',
+                color: '#fff', borderRadius: '6px', padding: '4px 10px', fontSize: '11px',
+                cursor: 'pointer', flexShrink: 0,
+              }}>
+                <X size={14} />
+              </button>
             </div>
           )}
 
@@ -653,7 +670,7 @@ export default function FloorPlan3D() {
             padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
             fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px',
           }}>
-            <ArrowLeft size={14} /> Vue 2D
+            <ArrowLeft size={14} /> Accueil
           </button>
           <span style={{ color: '#fff', fontFamily: 'serif', fontSize: '18px', fontWeight: '600' }}>Plan 3D</span>
         </div>
@@ -661,19 +678,25 @@ export default function FloorPlan3D() {
         {/* Dimensions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ color: '#888', fontSize: '13px' }}>Pièce :</span>
-          {[['L', roomW, setRoomW, 2, 15], ['P', roomD, setRoomD, 2, 15], ['H', wallH, setWallH, 2, 4]].map(([label, val, setter, min, max]) => (
+          {[['L', roomWInput, setRoomWInput, setRoomW, 2, 15], ['P', roomDInput, setRoomDInput, setRoomD, 2, 15], ['H', wallHInput, setWallHInput, setWallH, 2, 4]].map(([label, inputVal, setInput, setNum, min, max]) => (
             <label key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#aaa', fontSize: '13px' }}>
               {label}
               <input
                 type="text" inputMode="decimal"
-                value={val}
+                value={inputVal}
                 onChange={e => {
                   const raw = e.target.value
-                  if (raw === '' || raw === '.' || /^\d*\.?\d*$/.test(raw)) setter(raw)
+                  if (raw === '' || raw === '.' || /^\d*\.?\d*$/.test(raw)) {
+                    setInput(raw)
+                    const n = parseFloat(raw)
+                    if (!isNaN(n) && n >= min && n <= max) setNum(n)
+                  }
                 }}
                 onBlur={e => {
                   const n = parseFloat(e.target.value)
-                  setter(isNaN(n) ? min : Math.max(min, Math.min(max, n)))
+                  const clamped = isNaN(n) ? min : Math.max(min, Math.min(max, n))
+                  setNum(clamped)
+                  setInput(String(clamped))
                 }}
                 style={inputStyle}
               />

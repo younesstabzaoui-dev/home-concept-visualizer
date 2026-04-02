@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Lock, Eye, EyeOff, AlertCircle, ShieldCheck } from 'lucide-react'
 import AdminPanel from '../components/AdminPanel.jsx'
 import API_BASE from '../config'
@@ -176,6 +177,7 @@ const styles = {
 }
 
 export default function Admin() {
+  const navigate = useNavigate()
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [authenticated, setAuthenticated] = useState(false)
@@ -190,32 +192,20 @@ export default function Admin() {
     setError(null)
 
     try {
-      // Vérification via un endpoint protégé
-      const res = await fetch(API_BASE + '/api/products', {
+      const res = await fetch(API_BASE + '/api/admin/verify', {
+        method: 'POST',
         headers: { 'x-admin-password': password },
       })
 
-      // Si la requête GET /api/products passe, on vérifie l'accès admin
-      // via un POST test sur un endpoint fictif ou on utilise la réponse
-      // En pratique, on teste en essayant de créer un produit invalide
-      const testRes = await fetch(API_BASE + '/api/products/test-auth-check-invalid-id-000', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-password': password,
-        },
-        body: JSON.stringify({}),
-      })
-
-      // 401 = mauvais mot de passe, 404 = bon MDP mais produit inexistant (normal)
-      if (testRes.status === 401) {
+      if (res.status === 401) {
         setError('Mot de passe incorrect.')
-      } else {
+      } else if (res.ok) {
         setAdminPassword(password)
         setAuthenticated(true)
+      } else {
+        setError('Erreur serveur. Réessayez.')
       }
     } catch {
-      // En cas d'erreur réseau, on essaie quand même
       setError('Impossible de contacter le serveur. Vérifiez que le backend est démarré.')
     } finally {
       setChecking(false)
@@ -227,7 +217,7 @@ export default function Admin() {
       <div style={styles.page}>
         <header style={styles.topBar}>
           <div style={styles.topBarInner}>
-            <span style={styles.brand}>Home Concept</span>
+            <span style={{ ...styles.brand, cursor: 'pointer' }} onClick={() => navigate('/')}>Home Concept</span>
             <span style={styles.adminBadge}>
               <ShieldCheck size={13} />
               Administration
@@ -308,7 +298,7 @@ export default function Admin() {
     <div style={styles.page}>
       <header style={styles.topBar}>
         <div style={styles.topBarInner}>
-          <span style={styles.brand}>Home Concept</span>
+          <span style={{ ...styles.brand, cursor: 'pointer' }} onClick={() => navigate('/')}>Home Concept</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={styles.adminBadge}>
               <ShieldCheck size={13} />

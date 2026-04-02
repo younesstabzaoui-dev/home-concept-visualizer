@@ -37,6 +37,15 @@ app.use('/api/products', productsRouter);
 app.use('/api/generate', generateRouter);
 app.use('/api/generate-3d', generate3dRouter);
 
+// Vérification mot de passe admin
+app.post('/api/admin/verify', (req, res) => {
+  const pwd = req.headers['x-admin-password']
+  if (!pwd || pwd !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Mot de passe incorrect.' })
+  }
+  res.json({ ok: true })
+});
+
 // Route santé
 app.get('/api/health', (req, res) => {
   res.json({
