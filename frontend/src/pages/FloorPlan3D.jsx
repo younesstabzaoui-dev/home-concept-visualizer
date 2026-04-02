@@ -330,6 +330,7 @@ export default function FloorPlan3D() {
   }
 
   const removeOpening = (id) => setOpenings(prev => prev.filter(o => o.id !== id))
+  const moveOpening = (id, xOffset) => setOpenings(prev => prev.map(o => o.id === id ? { ...o, xOffset } : o))
 
   const selectedItem = placedItems.find(i => i.id === selectedId)
 
@@ -545,16 +546,30 @@ export default function FloorPlan3D() {
 
                   {/* Liste des ouvertures placées */}
                   {openings.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <p style={{ color: '#555', fontSize: '10px', marginBottom: '4px' }}>Placées :</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <p style={{ color: '#555', fontSize: '10px', marginBottom: '2px' }}>Placées :</p>
                       {openings.map(op => (
-                        <div key={op.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', backgroundColor: '#1a1a1a', borderRadius: '6px', border: '1px solid #2a2a2a' }}>
-                          <span style={{ color: '#bbb', fontSize: '11px' }}>
-                            {OPENING_TYPES.find(t => t.type === op.type)?.label} · {WALLS.find(w => w.id === op.wall)?.label.replace('Mur ', '')}
-                          </span>
-                          <button onClick={() => removeOpening(op.id)} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: '2px', display: 'flex' }}>
-                            <Trash2 size={12} />
-                          </button>
+                        <div key={op.id} style={{ padding: '8px 10px', backgroundColor: '#1a1a1a', borderRadius: '6px', border: '1px solid #2a2a2a' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ color: '#bbb', fontSize: '11px' }}>
+                              {OPENING_TYPES.find(t => t.type === op.type)?.label} · {WALLS.find(w => w.id === op.wall)?.label.replace('Mur ', '')}
+                            </span>
+                            <button onClick={() => removeOpening(op.id)} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: '2px', display: 'flex' }}>
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                          {/* Slider position sur le mur */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: '#555', fontSize: '10px', flexShrink: 0 }}>◀</span>
+                            <input
+                              type="range"
+                              min={-1} max={1} step={0.05}
+                              value={op.xOffset}
+                              onChange={e => moveOpening(op.id, Number(e.target.value))}
+                              style={{ flex: 1, accentColor: '#aaa', height: '4px', cursor: 'pointer' }}
+                            />
+                            <span style={{ color: '#555', fontSize: '10px', flexShrink: 0 }}>▶</span>
+                          </div>
                         </div>
                       ))}
                     </div>
