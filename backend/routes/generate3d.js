@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { fal } = require('@fal-ai/client');
 const mongoose = require('mongoose');
+const https = require('https');
+const http = require('http');
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -13,8 +15,49 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Télécharge une URL en Buffer (compatible toutes versions Node)
+function downloadBuffer(url) {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
+    client.get(url, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        return downloadBuffer(response.headers.location).then(resolve).catch(reject);
+      }
+      if (response.statusCode !== 200) {
+        return reject(new Error(`HTTP ${response.statusCode}`));
+      }
+      const chunks = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => resolve(Buffer.concat(chunks)));
+      response.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+// Sauvegarde le GLB dans MongoDB en arrière-plan (ne bloque pas la réponse)
+async function saveGlbInBackground(falGlbUrl, productId, backendBaseUrl) {
+  try {
+    const buffer = await downloadBuffer(falGlbUrl);
+    const GlbFile = require('../models/GlbFile');
+
+    await GlbFile.findOneAndUpdate(
+      { productId },
+      { productId, data: buffer, size: buffer.length },
+      { upsert: true }
+    );
+
+    // Mettre à jour le glbUrl du produit vers l'URL permanente
+    const Product = require('../models/Product');
+    const permanentUrl = `${backendBaseUrl}/api/glb/${productId}`;
+    await Product.findOneAndUpdate({ id: productId }, { $set: { glbUrl: permanentUrl } });
+
+    console.log(`[generate3d] GLB sauvegardé dans MongoDB (${(buffer.length / 1024).toFixed(0)} KB) → ${permanentUrl}`);
+  } catch (err) {
+    console.error('[generate3d] Erreur sauvegarde arrière-plan:', err.message);
+  }
+}
+
 // POST /api/generate-3d
-// Body: { imageUrl: string, productId: string }
 router.post('/', requireAdmin, async (req, res) => {
   try {
     const { imageUrl, productId } = req.body;
@@ -50,43 +93,24 @@ router.post('/', requireAdmin, async (req, res) => {
       return res.status(500).json({ error: 'GLB non retourné par fal.ai.' });
     }
 
-    console.log('[generate3d] GLB généré, téléchargement en cours...');
+    console.log('[generate3d] GLB généré:', falGlbUrl.substring(0, 80));
 
-    // Télécharger le GLB et le stocker dans MongoDB pour qu'il ne disparaisse jamais
-    let glbUrl = falGlbUrl;
+    // Répondre immédiatement avec l'URL fal.ai (temporaire)
+    res.json({ glbUrl: falGlbUrl });
 
+    // En arrière-plan : télécharger et sauvegarder dans MongoDB pour rendre permanent
     if (productId && mongoose.connection.readyState === 1) {
-      try {
-        const response = await fetch(falGlbUrl);
-        if (response.ok) {
-          const arrayBuffer = await response.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          const GlbFile = require('../models/GlbFile');
-
-          await GlbFile.findOneAndUpdate(
-            { productId },
-            { productId, data: buffer, size: buffer.length },
-            { upsert: true }
-          );
-
-          // URL permanente qui pointe vers notre propre backend
-          const backendUrl = `${req.protocol}://${req.get('host')}`;
-          glbUrl = `${backendUrl}/api/glb/${productId}`;
-
-          console.log(`[generate3d] GLB sauvegardé dans MongoDB (${(buffer.length / 1024).toFixed(0)} KB) → ${glbUrl}`);
-        } else {
-          console.warn('[generate3d] Impossible de télécharger le GLB fal.ai, on garde l\'URL temporaire');
-        }
-      } catch (dlErr) {
-        console.warn('[generate3d] Erreur téléchargement GLB:', dlErr.message, '— on garde l\'URL fal.ai');
-      }
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      const backendBaseUrl = `${protocol}://${host}`;
+      saveGlbInBackground(falGlbUrl, productId, backendBaseUrl);
     }
-
-    res.json({ glbUrl });
 
   } catch (err) {
     console.error('[generate3d] Erreur:', err.message);
-    res.status(500).json({ error: 'Erreur lors de la génération 3D: ' + err.message });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Erreur lors de la génération 3D: ' + err.message });
+    }
   }
 });
 
