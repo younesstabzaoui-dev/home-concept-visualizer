@@ -9,8 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.5.0",
+    "@react-three/drei": "^9.120.4",
+    "@react-three/fiber": "^8.17.14",
     "konva": "^10.2.3",
     "lucide-react": "^0.395.0",
     "react": "^18.3.1",
@@ -18,7 +18,7 @@
     "react-dom": "^18.3.1",
     "react-konva": "^18.2.10",
     "react-router-dom": "^6.24.1",
-    "three": "^0.183.2"
+    "three": "^0.170.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
