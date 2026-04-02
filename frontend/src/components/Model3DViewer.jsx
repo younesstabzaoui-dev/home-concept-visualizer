@@ -1,5 +1,5 @@
 import React from 'react'
-import { X, RotateCcw } from 'lucide-react'
+import { X, Download } from 'lucide-react'
 
 const styles = {
   overlay: {
@@ -46,9 +46,28 @@ export default function Model3DViewer({ product, onClose }) {
       <div style={styles.modal} onClick={e => e.stopPropagation()}>
         <div style={styles.header}>
           <span style={styles.title}>{product.name}</span>
-          <button style={styles.closeBtn} onClick={onClose} aria-label="Fermer la vue 3D">
-            <X size={18} />
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <a
+              href={product.glbUrl}
+              download={`${product.name.replace(/\s+/g, '-')}.glb`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                ...styles.closeBtn,
+                textDecoration: 'none',
+                fontSize: '12px', fontWeight: '500', gap: '6px',
+                padding: '8px 12px',
+              }}
+              aria-label="Télécharger le fichier 3D"
+              title="Télécharger le fichier .glb"
+            >
+              <Download size={15} />
+              .glb
+            </a>
+            <button style={styles.closeBtn} onClick={onClose} aria-label="Fermer la vue 3D">
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         <div style={styles.viewerWrap}>

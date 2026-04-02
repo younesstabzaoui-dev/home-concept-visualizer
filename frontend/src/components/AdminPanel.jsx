@@ -130,6 +130,7 @@ export default function AdminPanel({ adminPassword }) {
   const [deleting, setDeleting] = useState(false)
   const [generating3d, setGenerating3d] = useState(null) // product.id en cours
   const [viewing3D, setViewing3D] = useState(null)
+  const [toast3d, setToast3d] = useState(null) // nom du produit en cours
 
   const headers = {
     'Content-Type': 'application/json',
@@ -191,6 +192,7 @@ export default function AdminPanel({ adminPassword }) {
       return
     }
     setGenerating3d(product.id)
+    setToast3d(product.name)
     try {
       // 1. Appel TRELLIS pour générer le GLB
       const genRes = await fetch(API_BASE + '/api/generate-3d', {
@@ -214,6 +216,7 @@ export default function AdminPanel({ adminPassword }) {
       setError('Erreur 3D : ' + err.message)
     } finally {
       setGenerating3d(null)
+      setToast3d(null)
     }
   }
 
@@ -372,6 +375,19 @@ export default function AdminPanel({ adminPassword }) {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {toast3d && (
+        <div style={{
+          position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+          backgroundColor: '#0A0A0A', color: 'white', borderRadius: '12px',
+          padding: '14px 24px', fontSize: '14px', fontWeight: '500',
+          display: 'flex', alignItems: 'center', gap: '12px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3)', zIndex: 3000,
+        }}>
+          <Loader2 size={18} className="spin" />
+          Génération 3D de <strong style={{ marginLeft: '4px' }}>{toast3d}</strong>… (~30s)
         </div>
       )}
 
