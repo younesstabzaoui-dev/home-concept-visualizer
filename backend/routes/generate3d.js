@@ -42,7 +42,9 @@ router.post('/', requireAdmin, async (req, res) => {
       logs: false,
     });
 
-    const glbUrl = result?.data?.model_file || result?.data?.glb || result?.data?.model_mesh;
+    // fal.ai retourne model_file soit comme string soit comme objet { url, file_name, ... }
+    const raw = result?.data?.model_file || result?.data?.glb || result?.data?.model_mesh;
+    const glbUrl = typeof raw === 'string' ? raw : raw?.url;
 
     if (!glbUrl) {
       console.error('[generate3d] Réponse inattendue fal.ai:', JSON.stringify(result?.data));
