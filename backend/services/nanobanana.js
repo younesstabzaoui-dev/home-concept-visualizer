@@ -1,9 +1,8 @@
 /**
  * Google Gemini Image Generation Service
  * =======================================
- * Remplace le wrapper Nano Banana d'origine.
- * Utilise gemini-2.0-flash-preview-image-generation pour générer
- * un rendu d'intérieur à partir d'une photo de pièce + images produits.
+ * Utilise gemini-2.5-flash-image pour générer un rendu d'intérieur
+ * à partir d'une photo de pièce + images produits labelisées.
  */
 
 const https = require('https');
@@ -18,22 +17,32 @@ const GEMINI_BASE_URL = 'generativelanguage.googleapis.com';
  * @param {string} params.prompt - Prompt texte décrivant le rendu souhaité
  * @param {string} params.roomImageBase64 - Image de la pièce vide en base64
  * @param {string} params.roomImageMime - MIME type de l'image pièce (ex: image/jpeg)
- * @param {Array<{data: string, mime: string}>} params.productImagesBase64 - Images produits en base64
+ * @param {Array<{data: string, mime: string, name: string}>} params.productImages - Images produits avec noms
  * @returns {Promise<{imageBase64: string, mimeType: string}>}
  */
-async function generateInteriorRender({ prompt, roomImageBase64, roomImageMime = 'image/jpeg', productImagesBase64 = [] }) {
+async function generateInteriorRender({ prompt, roomImageBase64, roomImageMime = 'image/jpeg', productImages = [] }) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY non défini dans les variables d\'environnement.');
   }
 
-  // Construction du tableau de parts : d'abord les images produits, puis la pièce, puis le prompt
+  // Construction des parts avec labels explicites pour chaque image
   const parts = [];
 
-  // Images produits comme références de style (max 10)
-  const productsToSend = productImagesBase64.slice(0, 10);
+  // 1. Photo de la pièce avec label
+  parts.push({ text: 'THIS IS THE ROOM PHOTO — keep this room exactly as-is:' });
+  parts.push({
+    inlineData: {
+      mimeType: roomImageMime,
+      data: roomImageBase64,
+    }
+  });
+
+  // 2. Images produits avec label individuel (max 4)
+  const productsToSend = productImages.slice(0, 4);
   for (const img of productsToSend) {
+    parts.push({ text: `THIS IS THE REFERENCE IMAGE FOR "${img.name}" — reproduce this furniture exactly:` });
     parts.push({
       inlineData: {
         mimeType: img.mime || 'image/jpeg',
@@ -42,22 +51,14 @@ async function generateInteriorRender({ prompt, roomImageBase64, roomImageMime =
     });
   }
 
-  // Photo de la pièce vide
-  parts.push({
-    inlineData: {
-      mimeType: roomImageMime,
-      data: roomImageBase64,
-    }
-  });
-
-  // Prompt texte
+  // 3. Instruction principale
   parts.push({ text: prompt });
 
   const payload = {
     contents: [{ parts }],
     generationConfig: {
       responseModalities: ['IMAGE', 'TEXT'],
-      temperature: 1,
+      temperature: 0.5,
     },
   };
 
