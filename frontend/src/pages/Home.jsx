@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Sparkles, LayoutGrid, ArrowRight, Sofa, Ruler } from 'lucide-react'
+import { Sparkles, LayoutGrid, ArrowRight, Sofa, Ruler, Box, LogIn } from 'lucide-react'
 
 export default function Home() {
   const navigate = useNavigate()
@@ -9,10 +9,13 @@ export default function Home() {
     <div style={styles.page}>
       <header style={styles.header}>
         <div style={styles.headerInner}>
-          <div style={styles.brand}>
+          <div style={styles.brand} onClick={() => navigate('/')} role="button" tabIndex={0}>
             <span style={styles.brandName}>HOME CONCEPT</span>
             <span style={styles.brandSub}>Visualiseur d'intérieur</span>
           </div>
+          <button onClick={() => navigate('/admin')} style={styles.loginBtn}>
+            <LogIn size={14} /> Connexion
+          </button>
         </div>
       </header>
 
@@ -21,7 +24,7 @@ export default function Home() {
           <p style={styles.heroEyebrow}>Bienvenue</p>
           <h1 style={styles.heroTitle}>Imaginez votre intérieur<br />avant d'acheter</h1>
           <p style={styles.heroSubtitle}>
-            Deux outils pour visualiser vos meubles Home Concept dans votre espace réel.
+            Trois outils pour visualiser vos meubles Home Concept dans votre espace réel.
           </p>
         </div>
 
@@ -75,11 +78,36 @@ export default function Home() {
             </div>
           </button>
 
+          {/* Card 3 — Plan 3D — fond sombre */}
+          <button style={styles.card3D} onClick={() => navigate('/plan-3d')}>
+            <div style={styles.iconWrap3D}>
+              <Box size={26} color="#90C8E8" />
+            </div>
+            <span style={styles.badge3D}>Immersif</span>
+            <h2 style={{ ...styles.cardTitle }}>Plan 3D</h2>
+            <p style={styles.desc3D}>
+              Construisez votre pièce en 3D, placez vos meubles et visualisez le résultat sous tous les angles.
+            </p>
+            <ul style={styles.featureList}>
+              <li style={styles.feature3D}><span style={styles.dot3D} />Vue 3D interactive</li>
+              <li style={styles.feature3D}><span style={styles.dot3D} />Personnalisez sols et murs</li>
+              <li style={styles.feature3D}><span style={styles.dot3D} />Ajoutez portes et fenêtres</li>
+            </ul>
+            <div style={styles.ideal3D}>
+              <Box size={13} />
+              Idéal pour explorer votre futur intérieur en volume
+            </div>
+            <div style={styles.cta3D}>
+              Commencer <ArrowRight size={15} />
+            </div>
+          </button>
+
         </div>
 
         <p style={styles.footerNote}>
           Vous ne savez pas par où commencer ?{' '}
           <strong style={{ color: '#0A0A0A' }}>Commencez par le Plan 2D</strong> pour vérifier les dimensions,
+          explorez en <strong style={{ color: '#0A0A0A' }}>Plan 3D</strong> pour voir en volume,
           puis utilisez le <strong style={{ color: '#0A0A0A' }}>Visualiseur IA</strong> pour le rendu final.
         </p>
       </main>
@@ -104,9 +132,16 @@ const styles = {
     height: '60px',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
-  brand: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  brand: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', cursor: 'pointer' },
+  loginBtn: {
+    display: 'flex', alignItems: 'center', gap: '6px',
+    background: 'none', border: '1px solid #E5E5E3',
+    padding: '6px 14px', borderRadius: '8px', cursor: 'pointer',
+    fontSize: '13px', fontWeight: '500', color: '#6B7280',
+    transition: 'all 150ms',
+  },
   brandName: {
     fontFamily: 'var(--font-serif)',
     fontSize: '18px',
@@ -264,6 +299,54 @@ const styles = {
   ctaLight: {
     display: 'flex', alignItems: 'center', gap: '8px',
     fontSize: '14px', fontWeight: '600', color: '#0A0A0A',
+  },
+
+  /* ---- CARTE 3D ---- */
+  card3D: {
+    backgroundColor: '#0F1A2E',
+    border: 'none',
+    borderRadius: '20px',
+    padding: 'clamp(24px, 4vw, 36px) clamp(20px, 4vw, 32px)',
+    textAlign: 'left',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+    boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
+    transition: 'transform 150ms ease',
+  },
+  iconWrap3D: {
+    width: '48px', height: '48px', borderRadius: '12px',
+    backgroundColor: 'rgba(144,200,232,0.12)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  badge3D: {
+    display: 'inline-block', fontSize: '10px', fontWeight: '700',
+    letterSpacing: '0.12em', textTransform: 'uppercase',
+    color: '#90C8E8', backgroundColor: 'rgba(144,200,232,0.1)',
+    padding: '3px 10px', borderRadius: '20px', width: 'fit-content',
+  },
+  desc3D: {
+    fontSize: '14px', lineHeight: '1.65',
+    color: 'rgba(250,250,248,0.65)', margin: 0,
+  },
+  feature3D: {
+    fontSize: '13px', display: 'flex', alignItems: 'center', gap: '10px',
+    color: 'rgba(250,250,248,0.8)',
+  },
+  dot3D: {
+    width: '5px', height: '5px', borderRadius: '50%',
+    backgroundColor: '#90C8E8', flexShrink: 0,
+  },
+  ideal3D: {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    fontSize: '12px', color: 'rgba(250,250,248,0.4)',
+    borderTop: '1px solid rgba(255,255,255,0.07)',
+    paddingTop: '14px', marginTop: '2px',
+  },
+  cta3D: {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    fontSize: '14px', fontWeight: '600', color: '#FAFAF8',
   },
 
   footerNote: {
