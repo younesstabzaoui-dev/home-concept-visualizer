@@ -445,11 +445,20 @@ export default function FloorPlan3D() {
             <div style={{ borderTop: '1px solid #222', paddingTop: '12px' }}>
               <p style={{ color: '#888', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Dimensions</p>
               <div style={{ display: 'flex', gap: '8px' }}>
-                {[['L', roomW, setRoomW], ['P', roomD, setRoomD], ['H', wallH, setWallH]].map(([label, val, setter]) => (
+                {[['L', roomW, setRoomW, 2, 15], ['P', roomD, setRoomD, 2, 15], ['H', wallH, setWallH, 2, 4]].map(([label, val, setter, min, max]) => (
                   <label key={label} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#aaa', fontSize: '12px', flex: 1 }}>
                     {label}
-                    <input type="number" min={2} max={15} step={0.5} value={val}
-                      onChange={e => setter(Math.max(label === 'H' ? 2 : 2, Math.min(label === 'H' ? 4 : 15, Number(e.target.value) || 2)))}
+                    <input
+                      type="text" inputMode="decimal"
+                      value={val}
+                      onChange={e => {
+                        const raw = e.target.value
+                        if (raw === '' || raw === '.' || /^\d*\.?\d*$/.test(raw)) setter(raw)
+                      }}
+                      onBlur={e => {
+                        const n = parseFloat(e.target.value)
+                        setter(isNaN(n) ? min : Math.max(min, Math.min(max, n)))
+                      }}
                       style={{ ...inputStyle, width: '100%', flex: 1 }}
                     />
                   </label>
@@ -652,12 +661,20 @@ export default function FloorPlan3D() {
         {/* Dimensions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ color: '#888', fontSize: '13px' }}>Pièce :</span>
-          {[['L', roomW, setRoomW], ['P', roomD, setRoomD], ['H', wallH, setWallH]].map(([label, val, setter]) => (
+          {[['L', roomW, setRoomW, 2, 15], ['P', roomD, setRoomD, 2, 15], ['H', wallH, setWallH, 2, 4]].map(([label, val, setter, min, max]) => (
             <label key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#aaa', fontSize: '13px' }}>
               {label}
-              <input type="number" min={2} max={15} step={0.5} value={val}
-                onChange={e => setter(Math.max(label === 'H' ? 2 : 2, Math.min(label === 'H' ? 4 : 15, Number(e.target.value) || 2)))}
-                step={label === 'H' ? 0.1 : 0.5}
+              <input
+                type="text" inputMode="decimal"
+                value={val}
+                onChange={e => {
+                  const raw = e.target.value
+                  if (raw === '' || raw === '.' || /^\d*\.?\d*$/.test(raw)) setter(raw)
+                }}
+                onBlur={e => {
+                  const n = parseFloat(e.target.value)
+                  setter(isNaN(n) ? min : Math.max(min, Math.min(max, n)))
+                }}
                 style={inputStyle}
               />
               <span style={{ color: '#666' }}>m</span>
