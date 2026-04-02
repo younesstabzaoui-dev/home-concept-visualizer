@@ -204,7 +204,7 @@ export default function AdminPanel({ adminPassword }) {
     }, 1000)
 
     try {
-      // 1. Appel TRELLIS pour générer le GLB
+      // Appel backend : génère le GLB + télécharge + sauvegarde dans MongoDB (tout en un)
       const genRes = await fetch(API_BASE + '/api/generate-3d', {
         method: 'POST',
         headers,
@@ -214,14 +214,8 @@ export default function AdminPanel({ adminPassword }) {
       const genData = await genRes.json()
       if (!genRes.ok) throw new Error(genData.error || 'Erreur génération 3D')
 
-      // 2. Sauvegarde l'URL du GLB dans la fiche produit
+      // Le backend a déjà sauvegardé le GLB dans MongoDB et mis à jour le produit
       setToast3d({ name: product.name, step: 'save', progress: 95 })
-      const saveRes = await fetch(API_BASE + `/api/products/${product.id}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ glbUrl: genData.glbUrl }),
-      })
-      if (!saveRes.ok) throw new Error('Erreur sauvegarde GLB')
 
       setToast3d({ name: product.name, step: 'done', progress: 100 })
       await loadProducts()
@@ -358,7 +352,9 @@ export default function AdminPanel({ adminPassword }) {
                           onClick={() => product.glbUrl ? setViewing3D(product) : handleGenerate3D(product)}
                           disabled={generating3d === product.id}
                           aria-label={product.glbUrl ? `Voir ${product.name} en 3D` : `Générer 3D pour ${product.name}`}
-                          title={product.glbUrl ? 'Voir en 3D' : 'Générer 3D (~30s, $0.02)'}
+                          title={product.glbUrl
+                            ? (product.glbUrl.includes('/api/glb/') ? '3D permanent (MongoDB) — Cliquer pour voir' : '3D temporaire — Regénérer pour rendre permanent')
+                            : 'Générer 3D (~60s)'}
                         >
                           {generating3d === product.id
                             ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
