@@ -130,7 +130,8 @@ export default function AdminPanel({ adminPassword }) {
   const [deleting, setDeleting] = useState(false)
   const [generating3d, setGenerating3d] = useState(null) // product.id en cours
   const [viewing3D, setViewing3D] = useState(null)
-  const [toast3d, setToast3d] = useState(null) // nom du produit en cours
+  const [toast3d, setToast3d] = useState(null) // { name, step, progress }
+
 
   const headers = {
     'Content-Type': 'application/json',
@@ -192,7 +193,16 @@ export default function AdminPanel({ adminPassword }) {
       return
     }
     setGenerating3d(product.id)
-    setToast3d(product.name)
+    setToast3d({ name: product.name, step: 'generate', progress: 0 })
+
+    // Simule la progression pendant la génération fal.ai (~30s)
+    let progressInterval = setInterval(() => {
+      setToast3d(prev => prev && prev.step === 'generate'
+        ? { ...prev, progress: Math.min(prev.progress + 3, 90) }
+        : prev
+      )
+    }, 1000)
+
     try {
       // 1. Appel TRELLIS pour générer le GLB
       const genRes = await fetch(API_BASE + '/api/generate-3d', {
@@ -200,10 +210,12 @@ export default function AdminPanel({ adminPassword }) {
         headers,
         body: JSON.stringify({ imageUrl: product.image, productId: product.id }),
       })
+      clearInterval(progressInterval)
       const genData = await genRes.json()
       if (!genRes.ok) throw new Error(genData.error || 'Erreur génération 3D')
 
       // 2. Sauvegarde l'URL du GLB dans la fiche produit
+      setToast3d({ name: product.name, step: 'save', progress: 95 })
       const saveRes = await fetch(API_BASE + `/api/products/${product.id}`, {
         method: 'PUT',
         headers,
@@ -211,12 +223,15 @@ export default function AdminPanel({ adminPassword }) {
       })
       if (!saveRes.ok) throw new Error('Erreur sauvegarde GLB')
 
+      setToast3d({ name: product.name, step: 'done', progress: 100 })
       await loadProducts()
+      setTimeout(() => setToast3d(null), 2000)
     } catch (err) {
+      clearInterval(progressInterval)
       setError('Erreur 3D : ' + err.message)
+      setToast3d(null)
     } finally {
       setGenerating3d(null)
-      setToast3d(null)
     }
   }
 
@@ -381,13 +396,37 @@ export default function AdminPanel({ adminPassword }) {
       {toast3d && (
         <div style={{
           position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-          backgroundColor: '#0A0A0A', color: 'white', borderRadius: '12px',
-          padding: '14px 24px', fontSize: '14px', fontWeight: '500',
-          display: 'flex', alignItems: 'center', gap: '12px',
+          backgroundColor: '#0A0A0A', color: 'white', borderRadius: '14px',
+          padding: '16px 24px', fontSize: '14px', fontWeight: '500',
+          display: 'flex', flexDirection: 'column', gap: '10px',
           boxShadow: '0 8px 32px rgba(0,0,0,0.3)', zIndex: 3000,
+          minWidth: '320px',
         }}>
-          <Loader2 size={18} className="spin" />
-          Génération 3D de <strong style={{ marginLeft: '4px' }}>{toast3d}</strong>… (~30s)
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {toast3d.step === 'done'
+              ? <span style={{ color: '#4ade80', fontSize: '18px' }}>&#10003;</span>
+              : <Loader2 size={18} className="spin" />
+            }
+            <span>
+              {toast3d.step === 'generate' && <>Génération 3D de <strong>{toast3d.name}</strong>…</>}
+              {toast3d.step === 'save' && <>Sauvegarde en cours…</>}
+              {toast3d.step === 'done' && <><strong>{toast3d.name}</strong> — 3D prêt !</>}
+            </span>
+          </div>
+          {/* Barre de progression */}
+          <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: '2px',
+              backgroundColor: toast3d.step === 'done' ? '#4ade80' : '#8B7355',
+              width: `${toast3d.progress}%`,
+              transition: 'width 0.8s ease',
+            }} />
+          </div>
+          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
+            {toast3d.step === 'generate' && `Étape 1/2 — Modélisation IA (~30s)`}
+            {toast3d.step === 'save' && `Étape 2/2 — Sauvegarde`}
+            {toast3d.step === 'done' && `Terminé`}
+          </span>
         </div>
       )}
 
