@@ -7,38 +7,43 @@ import * as THREE from 'three'
 import API_BASE from '../config'
 
 // ─── Fenêtre décorative sur un mur ───────────────────────────────────────────
-function WindowDecoration({ position, rotation, w = 1.2, h = 0.9 }) {
+function WindowDecoration({ position, rotation, w = 1.2, h = 0.9, isBaie = false }) {
   const frameT = 0.05
+  const frameColor = '#E0E0E0'
   return (
     <group position={position} rotation={rotation}>
-      {/* Fond sombre (recess dans le mur) pour contraste */}
+      {/* Fond sombre pour contraste */}
       <mesh position={[0, 0, -0.02]}>
-        <planeGeometry args={[w + 0.05, h + 0.05]} />
-        <meshStandardMaterial color="#6A8090" />
+        <planeGeometry args={[w + 0.06, h + 0.06]} />
+        <meshStandardMaterial color="#5A7080" />
       </mesh>
-      {/* Vitre bleu-ciel */}
+      {/* Vitre */}
       <mesh position={[0, 0, 0.01]}>
         <planeGeometry args={[w - frameT * 2, h - frameT * 2]} />
-        <meshStandardMaterial color="#A8CCE0" transparent opacity={0.6} metalness={0.15} roughness={0.0} />
+        <meshStandardMaterial color={isBaie ? '#90C8E8' : '#A8CCE0'} transparent opacity={isBaie ? 0.45 : 0.6} metalness={0.15} roughness={0.0} />
       </mesh>
       {/* Cadre haut */}
-      <mesh position={[0, h / 2, 0.02]}><boxGeometry args={[w, frameT, 0.05]} /><meshStandardMaterial color="#E8E8E8" /></mesh>
+      <mesh position={[0, h / 2, 0.02]}><boxGeometry args={[w, frameT, 0.05]} /><meshStandardMaterial color={frameColor} /></mesh>
       {/* Cadre bas */}
-      <mesh position={[0, -h / 2, 0.02]}><boxGeometry args={[w, frameT, 0.05]} /><meshStandardMaterial color="#E8E8E8" /></mesh>
+      <mesh position={[0, -h / 2, 0.02]}><boxGeometry args={[w, frameT, 0.05]} /><meshStandardMaterial color={frameColor} /></mesh>
       {/* Cadre gauche */}
-      <mesh position={[-w / 2, 0, 0.02]}><boxGeometry args={[frameT, h, 0.05]} /><meshStandardMaterial color="#E8E8E8" /></mesh>
+      <mesh position={[-w / 2, 0, 0.02]}><boxGeometry args={[frameT, h, 0.05]} /><meshStandardMaterial color={frameColor} /></mesh>
       {/* Cadre droit */}
-      <mesh position={[w / 2, 0, 0.02]}><boxGeometry args={[frameT, h, 0.05]} /><meshStandardMaterial color="#E8E8E8" /></mesh>
-      {/* Croisillon central */}
-      <mesh position={[0, 0, 0.02]}><boxGeometry args={[w, frameT * 0.6, 0.04]} /><meshStandardMaterial color="#E8E8E8" /></mesh>
+      <mesh position={[w / 2, 0, 0.02]}><boxGeometry args={[frameT, h, 0.05]} /><meshStandardMaterial color={frameColor} /></mesh>
+      {/* Croisillon horizontal */}
+      <mesh position={[0, isBaie ? 0 : 0, 0.02]}><boxGeometry args={[w, frameT * 0.6, 0.04]} /><meshStandardMaterial color={frameColor} /></mesh>
+      {/* Croisillon vertical (baie vitrée = 2 panneaux) */}
+      {isBaie && (
+        <mesh position={[0, 0, 0.02]}><boxGeometry args={[frameT * 0.6, h, 0.04]} /><meshStandardMaterial color={frameColor} /></mesh>
+      )}
     </group>
   )
 }
 
 // ─── Porte décorative sur un mur ─────────────────────────────────────────────
-function DoorDecoration({ position, rotation, w = 0.9, h = 2.1, isDouble = false }) {
+function DoorDecoration({ position, rotation, w = 0.9, h = 2.1 }) {
+  // position = base de la porte (y=0 = sol)
   const frameT = 0.06
-  const doorW = isDouble ? w / 2 : w
   return (
     <group position={position} rotation={rotation}>
       {/* Fond sombre pour contraste */}
@@ -47,14 +52,10 @@ function DoorDecoration({ position, rotation, w = 0.9, h = 2.1, isDouble = false
         <meshStandardMaterial color="#4A4A4A" />
       </mesh>
       {/* Panneau porte (bois chaud) */}
-      {isDouble ? (
-        <>
-          <mesh position={[-doorW / 2, h / 2, 0.01]}><planeGeometry args={[doorW - 0.03, h - 0.02]} /><meshStandardMaterial color="#C8A87A" roughness={0.85} /></mesh>
-          <mesh position={[doorW / 2, h / 2, 0.01]}><planeGeometry args={[doorW - 0.03, h - 0.02]} /><meshStandardMaterial color="#C8A87A" roughness={0.85} /></mesh>
-        </>
-      ) : (
-        <mesh position={[0, h / 2, 0.01]}><planeGeometry args={[w - 0.03, h - 0.02]} /><meshStandardMaterial color="#C8A87A" roughness={0.85} /></mesh>
-      )}
+      <mesh position={[0, h / 2, 0.01]}>
+        <planeGeometry args={[w - 0.03, h - 0.02]} />
+        <meshStandardMaterial color="#C8A87A" roughness={0.85} />
+      </mesh>
       {/* Montant gauche */}
       <mesh position={[-w / 2 - frameT / 2, h / 2, 0.03]}><boxGeometry args={[frameT, h + frameT, 0.06]} /><meshStandardMaterial color="#E0E0E0" /></mesh>
       {/* Montant droit */}
@@ -62,7 +63,7 @@ function DoorDecoration({ position, rotation, w = 0.9, h = 2.1, isDouble = false
       {/* Linteau haut */}
       <mesh position={[0, h + frameT / 2, 0.03]}><boxGeometry args={[w + frameT * 2, frameT, 0.06]} /><meshStandardMaterial color="#E0E0E0" /></mesh>
       {/* Poignée */}
-      <mesh position={[isDouble ? -0.08 : w / 2 - 0.12, h / 2, 0.07]}>
+      <mesh position={[w / 2 - 0.12, h / 2, 0.07]}>
         <cylinderGeometry args={[0.02, 0.02, 0.12, 8]} rotation={[0, 0, Math.PI / 2]} />
         <meshStandardMaterial color="#B8922A" metalness={0.9} roughness={0.1} />
       </mesh>
@@ -114,42 +115,37 @@ function Room({ width, depth, wallH, floorType, floorColor, wallColor, openings 
         <meshStandardMaterial color={wallColor} roughness={0.9} />
       </mesh>
 
-      {/* Ouvertures (fenêtres / portes) */}
+      {/* Ouvertures (fenêtres / portes / baies) */}
       {openings.map(op => {
         const xPos = op.xOffset * (op.wall === 'back' ? width / 2 - 0.8 : depth / 2 - 0.8)
 
+        // Dimensions par type
+        const dims = {
+          fenetre: { w: 1.2, h: 1.1, yCenter: 1.2 + 1.1 / 2 }, // surélevée (centre à 1.75m)
+          baie:    { w: 1.8, h: 2.2, yCenter: 2.2 / 2 },         // au sol (centre à 1.1m)
+          porte:   { w: 0.9, h: 2.1, yBase: 0 },                  // au sol (base à 0)
+        }
+        const d = dims[op.type] || dims.porte
+
+        const wallOffset = 0.04
+        let pos, rot
+
         if (op.wall === 'back') {
-          const yBase = op.type === 'fenetre' ? 1.2 : 0
-          const h = op.type === 'fenetre' ? 1.1 : (op.type === 'baie' ? 2.4 : 2.1)
-          const w = op.type === 'baie' ? 1.6 : (op.type === 'porte-double' ? 1.6 : (op.type === 'fenetre' ? 1.2 : 0.9))
-          const pos = [xPos, yBase + h / 2, -depth / 2 + 0.04]
-          const rot = [0, 0, 0]
-          if (op.type === 'fenetre' || op.type === 'baie') {
-            return <WindowDecoration key={op.id} position={pos} rotation={rot} w={w} h={h} />
-          }
-          return <DoorDecoration key={op.id} position={pos} rotation={rot} w={w} h={h} isDouble={op.type === 'porte-double'} />
+          pos = [xPos, d.yCenter !== undefined ? d.yCenter : 0, -depth / 2 + wallOffset]
+          rot = [0, 0, 0]
+        } else if (op.wall === 'left') {
+          pos = [-width / 2 + wallOffset, d.yCenter !== undefined ? d.yCenter : 0, xPos]
+          rot = [0, Math.PI / 2, 0]
+        } else {
+          pos = [width / 2 - wallOffset, d.yCenter !== undefined ? d.yCenter : 0, xPos]
+          rot = [0, -Math.PI / 2, 0]
         }
 
-        if (op.wall === 'left') {
-          const yBase = op.type === 'fenetre' ? 1.2 : 0
-          const h = op.type === 'fenetre' ? 1.1 : 2.1
-          const w = op.type === 'fenetre' ? 1.2 : 0.9
-          const pos = [-width / 2 + 0.04, yBase + h / 2, xPos]
-          const rot = [0, Math.PI / 2, 0]
-          if (op.type === 'fenetre') return <WindowDecoration key={op.id} position={pos} rotation={rot} w={w} h={h} />
-          return <DoorDecoration key={op.id} position={pos} rotation={rot} w={w} h={h} />
+        // Fenêtre et baie = WindowDecoration (centrée), porte = DoorDecoration (base à y=0)
+        if (op.type === 'fenetre' || op.type === 'baie') {
+          return <WindowDecoration key={op.id} position={pos} rotation={rot} w={d.w} h={d.h} isBaie={op.type === 'baie'} />
         }
-
-        if (op.wall === 'right') {
-          const yBase = op.type === 'fenetre' ? 1.2 : 0
-          const h = op.type === 'fenetre' ? 1.1 : 2.1
-          const w = op.type === 'fenetre' ? 1.2 : 0.9
-          const pos = [width / 2 - 0.04, yBase + h / 2, xPos]
-          const rot = [0, -Math.PI / 2, 0]
-          if (op.type === 'fenetre') return <WindowDecoration key={op.id} position={pos} rotation={rot} w={w} h={h} />
-          return <DoorDecoration key={op.id} position={pos} rotation={rot} w={w} h={h} />
-        }
-        return null
+        return <DoorDecoration key={op.id} position={pos} rotation={rot} w={d.w} h={d.h} />
       })}
     </group>
   )
@@ -251,9 +247,8 @@ function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onM
 // ─── Composant principal ─────────────────────────────────────────────────────
 const OPENING_TYPES = [
   { type: 'fenetre', label: 'Fenêtre', desc: '120×110 cm' },
-  { type: 'baie', label: 'Baie vitrée', desc: '160×240 cm' },
+  { type: 'baie', label: 'Baie vitrée', desc: '180×220 cm' },
   { type: 'porte', label: 'Porte', desc: '90×210 cm' },
-  { type: 'porte-double', label: 'Double porte', desc: '160×210 cm' },
 ]
 const WALLS = [
   { id: 'back', label: 'Mur arrière' },
