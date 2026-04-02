@@ -540,7 +540,7 @@ export default function FloorPlan3D() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '8px 12px', backgroundColor: '#111', borderBottom: '1px solid #222', flexShrink: 0,
         }}>
-          <button onClick={() => navigate('/plan')} style={{
+          <button onClick={() => navigate('/')} style={{
             background: 'none', border: '1px solid #333', color: '#aaa',
             padding: '6px 10px', borderRadius: '6px', cursor: 'pointer',
             fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
@@ -648,7 +648,7 @@ export default function FloorPlan3D() {
         padding: '10px 20px', backgroundColor: '#111', borderBottom: '1px solid #222', flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button onClick={() => navigate('/plan')} style={{
+          <button onClick={() => navigate('/')} style={{
             background: 'none', border: '1px solid #333', color: '#aaa',
             padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
             fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px',
