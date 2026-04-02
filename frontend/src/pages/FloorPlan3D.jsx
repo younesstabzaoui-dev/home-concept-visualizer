@@ -63,13 +63,17 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD }) {
     return s
   }, [scene])
 
-  // Auto-scale : ajuste la taille au dimensions réelles du meuble
-  const scale = React.useMemo(() => {
+  // Auto-scale + calcul de l'offset Y pour poser le meuble SUR le sol
+  const { scale, yOffset } = React.useMemo(() => {
     const box = new THREE.Box3().setFromObject(cloned)
     const size = new THREE.Vector3()
     box.getSize(size)
     const targetW = (item.product.lengthCm || 100) / 100
-    return targetW / (size.x || 1)
+    const s = targetW / (size.x || 1)
+    // Après mise à l'échelle, recalculer la bounding box
+    // Le min Y de la box * scale = combien le meuble descend sous 0
+    const yOff = -box.min.y * s
+    return { scale: s, yOffset: yOff }
   }, [cloned, item.product.lengthCm])
 
   const isDragging = useRef(false)
@@ -112,7 +116,7 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD }) {
           <meshBasicMaterial color="#0A0A0A" transparent opacity={0.15} />
         </mesh>
       )}
-      <primitive object={cloned} scale={scale} />
+      <primitive object={cloned} scale={scale} position={[0, yOffset, 0]} />
     </group>
   )
 }
