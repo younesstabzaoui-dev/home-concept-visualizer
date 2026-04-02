@@ -163,7 +163,8 @@ function Room({ width, depth, wallH, floorType, floorColor, wallColor, openings 
 
 // ─── Meuble 3D ───────────────────────────────────────────────────────────────
 function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD }) {
-  const { scene } = useGLTF(item.product.glbUrl)
+  const glbSrc = item.product.glbUrl.startsWith('/') ? API_BASE + item.product.glbUrl : item.product.glbUrl
+  const { scene } = useGLTF(glbSrc)
   const cloned = React.useMemo(() => {
     const s = scene.clone(true)
     s.traverse(child => {

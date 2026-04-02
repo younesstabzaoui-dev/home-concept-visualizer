@@ -274,6 +274,46 @@ export default function AdminPanel({ adminPassword }) {
         </div>
       )}
 
+      {/* Section statut 3D */}
+      {!loading && products.length > 0 && (
+        <div style={{
+          padding: '16px 20px', backgroundColor: '#FAFAF8', borderRadius: '12px',
+          border: '1px solid var(--color-gray-200)', marginBottom: '16px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-black)', margin: 0 }}>
+              Modèles 3D
+            </h3>
+            <span style={{ fontSize: '12px', color: 'var(--color-gray-500)' }}>
+              {products.filter(p => p.glbUrl).length}/{products.length} générés
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {products.map(p => (
+              <div key={p.id} style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '6px 12px', borderRadius: '8px', fontSize: '12px',
+                backgroundColor: p.glbUrl ? '#E8F5E9' : '#FFF3E0',
+                border: `1px solid ${p.glbUrl ? '#C8E6C9' : '#FFE0B2'}`,
+                color: p.glbUrl ? '#2E7D32' : '#E65100',
+                cursor: p.glbUrl ? 'pointer' : 'default',
+              }}
+                onClick={() => p.glbUrl && setViewing3D(p)}
+                title={p.glbUrl
+                  ? (p.glbUrl.includes('/api/glb/') ? 'Permanent (MongoDB) — Cliquer pour voir' : 'Temporaire (fal.ai) — Regénérer')
+                  : 'Pas encore généré'}
+              >
+                {p.glbUrl
+                  ? <CheckCircle2 size={12} />
+                  : <Box size={12} />
+                }
+                {p.name}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {error && (
         <div style={styles.errorState} role="alert">
           <AlertCircle size={16} />

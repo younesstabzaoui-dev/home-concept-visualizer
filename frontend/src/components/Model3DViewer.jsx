@@ -1,5 +1,6 @@
 import React from 'react'
 import { X, Download } from 'lucide-react'
+import API_BASE from '../config'
 
 const styles = {
   overlay: {
@@ -40,6 +41,7 @@ const styles = {
 
 export default function Model3DViewer({ product, onClose }) {
   if (!product?.glbUrl) return null
+  const glbSrc = product.glbUrl.startsWith('/') ? API_BASE + product.glbUrl : product.glbUrl
 
   return (
     <div style={styles.overlay} onClick={onClose} role="dialog" aria-modal="true" aria-label={`Vue 3D — ${product.name}`}>
@@ -48,7 +50,7 @@ export default function Model3DViewer({ product, onClose }) {
           <span style={styles.title}>{product.name}</span>
           <div style={{ display: 'flex', gap: '8px' }}>
             <a
-              href={product.glbUrl}
+              href={glbSrc}
               download={`${product.name.replace(/\s+/g, '-')}.glb`}
               target="_blank"
               rel="noreferrer"
@@ -74,7 +76,7 @@ export default function Model3DViewer({ product, onClose }) {
           {/* model-viewer est un custom element HTML chargé via CDN dans index.html */}
           {/* Il gère nativement la rotation, le zoom, et l'AR sur mobile */}
           <model-viewer
-            src={product.glbUrl}
+            src={glbSrc}
             alt={`Modèle 3D de ${product.name}`}
             auto-rotate
             camera-controls

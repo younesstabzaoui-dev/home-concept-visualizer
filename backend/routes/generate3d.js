@@ -100,10 +100,8 @@ router.post('/', requireAdmin, async (req, res) => {
       { upsert: true }
     );
 
-    // Construire l'URL permanente absolue
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const glbUrl = `${protocol}://${host}/api/glb/${productId}`;
+    // URL permanente relative — le frontend la résout via son proxy API
+    const glbUrl = `/api/glb/${productId}`;
 
     // Mettre à jour le produit avec l'URL permanente
     const Product = require('../models/Product');
