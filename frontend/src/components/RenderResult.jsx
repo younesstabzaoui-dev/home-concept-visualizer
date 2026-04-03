@@ -99,6 +99,13 @@ export default function RenderResult({ originalImage, generatedImage, selectedPr
   const [showHint, setShowHint] = useState(true)
   const [aspectRatio, setAspectRatio] = useState(null)
 
+  const handleDownload = () => {
+    const link = document.createElement('a')
+    link.href = generatedImage
+    link.download = `home-concept-rendu-${Date.now()}.jpg`
+    link.click()
+  }
+
   // Détecte le ratio de l'image originale dès qu'elle est chargée
   const handleImageLoad = (e) => {
     const { naturalWidth, naturalHeight } = e.target
@@ -180,14 +187,12 @@ export default function RenderResult({ originalImage, generatedImage, selectedPr
           Nouvelle
         </button>
         <button
-          style={{ ...styles.actionBtn, ...styles.actionBtnDisabled }}
-          disabled
-          aria-label="Télécharger — disponible en version 2"
-          title="Disponible en V2"
+          style={{ ...styles.actionBtn, ...styles.actionBtnSecondary }}
+          onClick={handleDownload}
+          aria-label="Télécharger le rendu"
         >
           <Download size={20} />
           <span>Télécharger</span>
-          <span style={styles.v2Badge}>V2</span>
         </button>
         <button
           style={{ ...styles.actionBtn, ...styles.actionBtnDisabled }}
