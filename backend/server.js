@@ -91,14 +91,22 @@ app.post('/api/admin/verify', (req, res) => {
   res.json({ ok: true })
 });
 
-// Route santé
+// Route santé + diagnostic MongoDB
 app.get('/api/health', (req, res) => {
+  const mongoStates = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
   res.json({
     status: 'ok',
-    version: '1.0.0',
     timestamp: new Date().toISOString(),
-    env: process.env.NODE_ENV || 'development',
-    geminiConfigured: !!process.env.GEMINI_API_KEY,
+    mongodb: {
+      state: mongoStates[mongoose.connection.readyState] || 'unknown',
+      readyState: mongoose.connection.readyState,
+      uriConfigured: !!process.env.MONGODB_URI,
+      uriPreview: process.env.MONGODB_URI ? process.env.MONGODB_URI.substring(0, 30) + '...' : 'NON DÉFINI',
+    },
+    env: {
+      falKey: !!process.env.FAL_KEY,
+      adminPassword: !!process.env.ADMIN_PASSWORD,
+    },
   });
 });
 
@@ -119,17 +127,31 @@ app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.method} ${req.path} introuvable.` });
 });
 
-// Connexion MongoDB
+// Connexion MongoDB avec retry
 if (process.env.MONGODB_URI) {
-  mongoose.connect(process.env.MONGODB_URI)
+  console.log('  MongoDB: Connexion en cours...');
+  console.log('  MongoDB URI:', process.env.MONGODB_URI.substring(0, 30) + '...');
+  mongoose.connect(process.env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+    retryWrites: true,
+  })
     .then(async () => {
-      console.log('  MongoDB: Connecté ✓');
+      console.log('  MongoDB: Connecté ✓ (readyState=' + mongoose.connection.readyState + ')');
       const { seedProducts } = require('./services/productSeeder');
       await seedProducts();
     })
-    .catch(err => console.error('  MongoDB: Erreur connexion:', err.message));
+    .catch(err => {
+      console.error('  MongoDB: ERREUR CONNEXION:', err.message);
+      console.error('  MongoDB: Vérifiez MONGODB_URI et la whitelist IP sur Atlas');
+    });
+
+  mongoose.connection.on('error', err => console.error('  MongoDB event error:', err.message));
+  mongoose.connection.on('disconnected', () => console.warn('  MongoDB: Déconnecté'));
+  mongoose.connection.on('reconnected', () => console.log('  MongoDB: Reconnecté ✓'));
 } else {
-  console.log('  MongoDB: MONGODB_URI non défini — les données ne persisteront pas entre les déploiements');
+  console.error('  ⚠️  MONGODB_URI NON DÉFINI — les GLB 3D ne pourront pas être sauvegardés !');
+  console.error('  ⚠️  Ajoutez MONGODB_URI dans les variables d\'environnement de Render');
 }
 
 app.listen(PORT, () => {
