@@ -37,16 +37,43 @@ app.use('/api/products', productsRouter);
 app.use('/api/generate', generateRouter);
 app.use('/api/generate-3d', generate3dRouter);
 
+// Debug : lister les GLB stockés dans MongoDB
+app.get('/api/glb/debug', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.json({ error: 'MongoDB non connecté', readyState: mongoose.connection.readyState });
+    }
+    const GlbFile = require('./models/GlbFile');
+    const files = await GlbFile.find({}, { productId: 1, size: 1, createdAt: 1, _id: 0 }).lean();
+    const Product = require('./models/Product');
+    const products = await Product.find({}, { id: 1, name: 1, glbUrl: 1, _id: 0 }).lean();
+    res.json({
+      mongoConnected: true,
+      glbFiles: files.map(f => ({ productId: f.productId, sizeKB: Math.round((f.size || 0) / 1024), date: f.createdAt })),
+      products: products.map(p => ({ id: p.id, name: p.name, glbUrl: p.glbUrl || null })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Servir les fichiers GLB stockés dans MongoDB
 app.get('/api/glb/:productId', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: 'MongoDB non connecté.' });
+    }
     const GlbFile = require('./models/GlbFile');
     const glb = await GlbFile.findOne({ productId: req.params.productId });
-    if (!glb) return res.status(404).json({ error: 'GLB non trouvé.' });
+    if (!glb || !glb.data) {
+      console.warn(`[glb] GLB non trouvé pour productId=${req.params.productId}`);
+      return res.status(404).json({ error: 'GLB non trouvé.' });
+    }
     res.set({
       'Content-Type': 'model/gltf-binary',
-      'Content-Length': glb.size || glb.data.length,
+      'Content-Length': glb.data.length,
       'Cache-Control': 'public, max-age=31536000',
+      'Access-Control-Allow-Origin': '*',
     });
     res.send(glb.data);
   } catch (err) {

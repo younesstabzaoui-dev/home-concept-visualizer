@@ -39,9 +39,17 @@ const styles = {
   },
 }
 
+function resolveGlbUrl(product) {
+  if (!product.glbUrl) return null
+  if (product.glbUrl === 'stored' || product.glbUrl.includes('/api/glb/')) {
+    return API_BASE + '/api/glb/' + product.id
+  }
+  return product.glbUrl
+}
+
 export default function Model3DViewer({ product, onClose }) {
   if (!product?.glbUrl) return null
-  const glbSrc = product.glbUrl.startsWith('/') ? API_BASE + product.glbUrl : product.glbUrl
+  const glbSrc = resolveGlbUrl(product)
 
   return (
     <div style={styles.overlay} onClick={onClose} role="dialog" aria-modal="true" aria-label={`Vue 3D — ${product.name}`}>

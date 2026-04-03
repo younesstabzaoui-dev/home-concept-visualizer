@@ -162,8 +162,18 @@ function Room({ width, depth, wallH, floorType, floorColor, wallColor, openings 
 }
 
 // ─── Meuble 3D ───────────────────────────────────────────────────────────────
+function resolveGlbUrl(product) {
+  if (!product.glbUrl) return null
+  // Si marqueur 'stored' → construire l'URL depuis API_BASE
+  if (product.glbUrl === 'stored' || product.glbUrl.includes('/api/glb/')) {
+    return API_BASE + '/api/glb/' + product.id
+  }
+  // URL absolue (legacy fal.ai) → utiliser telle quelle
+  return product.glbUrl
+}
+
 function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD }) {
-  const glbSrc = item.product.glbUrl.startsWith('/') ? API_BASE + item.product.glbUrl : item.product.glbUrl
+  const glbSrc = resolveGlbUrl(item.product)
   const { scene } = useGLTF(glbSrc)
   const cloned = React.useMemo(() => {
     const s = scene.clone(true)

@@ -15,13 +15,14 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// Télécharge une URL en Buffer (compatible toutes versions Node)
-function downloadBuffer(url) {
+// Télécharge une URL en Buffer avec suivi de redirections
+function downloadBuffer(url, maxRedirects = 5) {
   return new Promise((resolve, reject) => {
+    if (maxRedirects <= 0) return reject(new Error('Trop de redirections'));
     const client = url.startsWith('https') ? https : http;
     const request = client.get(url, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-        return downloadBuffer(response.headers.location).then(resolve).catch(reject);
+        return downloadBuffer(response.headers.location, maxRedirects - 1).then(resolve).catch(reject);
       }
       if (response.statusCode !== 200) {
         return reject(new Error(`HTTP ${response.statusCode}`));
@@ -32,32 +33,24 @@ function downloadBuffer(url) {
       response.on('error', reject);
     });
     request.on('error', reject);
-    request.setTimeout(60000, () => { request.destroy(); reject(new Error('Download timeout')); });
+    request.setTimeout(120000, () => { request.destroy(); reject(new Error('Download timeout 120s')); });
   });
 }
 
 // POST /api/generate-3d
-// Body: { imageUrl: string, productId: string }
-// Timeout étendu : cette route peut prendre 60-90s (génération IA + download)
 router.post('/', requireAdmin, async (req, res) => {
-  // Timeout étendu pour cette route (2 minutes)
-  req.setTimeout(120000);
-  res.setTimeout(120000);
+  req.setTimeout(300000);
 
   try {
     const { imageUrl, productId } = req.body;
 
-    if (!imageUrl) {
-      return res.status(400).json({ error: 'imageUrl requis dans le body.' });
-    }
-    if (!productId) {
-      return res.status(400).json({ error: 'productId requis dans le body.' });
-    }
+    if (!imageUrl) return res.status(400).json({ error: 'imageUrl requis.' });
+    if (!productId) return res.status(400).json({ error: 'productId requis.' });
     if (!process.env.FAL_KEY || process.env.FAL_KEY === 'your_fal_api_key_here') {
-      return res.status(503).json({ error: 'FAL_KEY non configuré sur le serveur.' });
+      return res.status(503).json({ error: 'FAL_KEY non configuré.' });
     }
 
-    console.log('[generate3d] Étape 1/3 — Génération TRELLIS pour:', imageUrl.substring(0, 80));
+    console.log(`[3D] 1/3 Génération TRELLIS — produit ${productId}`);
 
     const result = await fal.subscribe('fal-ai/trellis', {
       input: {
@@ -76,44 +69,63 @@ router.post('/', requireAdmin, async (req, res) => {
     const falGlbUrl = typeof raw === 'string' ? raw : raw?.url;
 
     if (!falGlbUrl) {
-      console.error('[generate3d] Réponse inattendue fal.ai:', JSON.stringify(result?.data));
+      console.error('[3D] Réponse fal.ai inattendue:', JSON.stringify(result?.data).substring(0, 200));
       return res.status(500).json({ error: 'GLB non retourné par fal.ai.' });
     }
 
-    // Si MongoDB n'est pas connecté, retourner l'URL fal.ai (temporaire)
+    console.log(`[3D] 2/3 Téléchargement GLB: ${falGlbUrl.substring(0, 80)}...`);
+
+    // Vérifier MongoDB
     if (mongoose.connection.readyState !== 1) {
-      console.warn('[generate3d] MongoDB non connecté — URL fal.ai temporaire retournée');
-      return res.json({ glbUrl: falGlbUrl });
+      console.error('[3D] MongoDB NON CONNECTÉ — impossible de stocker le GLB');
+      return res.status(500).json({ error: 'Base de données non connectée. Le GLB ne peut pas être sauvegardé.' });
     }
 
-    // Étape 2 : Télécharger le GLB
-    console.log('[generate3d] Étape 2/3 — Téléchargement GLB...');
-    const buffer = await downloadBuffer(falGlbUrl);
-    console.log(`[generate3d] GLB téléchargé (${(buffer.length / 1024).toFixed(0)} KB)`);
+    // Télécharger le fichier GLB
+    let buffer;
+    try {
+      buffer = await downloadBuffer(falGlbUrl);
+      console.log(`[3D] GLB téléchargé: ${(buffer.length / 1024).toFixed(0)} KB`);
+    } catch (dlErr) {
+      console.error(`[3D] Erreur téléchargement: ${dlErr.message}`);
+      return res.status(500).json({ error: `Erreur téléchargement GLB: ${dlErr.message}` });
+    }
 
-    // Étape 3 : Sauvegarder dans MongoDB
-    console.log('[generate3d] Étape 3/3 — Sauvegarde dans MongoDB...');
-    const GlbFile = require('../models/GlbFile');
-    await GlbFile.findOneAndUpdate(
-      { productId },
-      { productId, data: buffer, size: buffer.length },
-      { upsert: true }
-    );
+    // Sauvegarder dans MongoDB
+    console.log(`[3D] 3/3 Sauvegarde dans MongoDB...`);
+    try {
+      const GlbFile = require('../models/GlbFile');
+      await GlbFile.findOneAndUpdate(
+        { productId },
+        { productId, data: buffer, size: buffer.length },
+        { upsert: true, new: true }
+      );
+      console.log(`[3D] GLB sauvegardé dans MongoDB OK`);
+    } catch (saveErr) {
+      console.error(`[3D] Erreur sauvegarde MongoDB: ${saveErr.message}`);
+      return res.status(500).json({ error: `Erreur sauvegarde: ${saveErr.message}` });
+    }
 
-    // URL permanente relative — le frontend la résout via son proxy API
-    const glbUrl = `/api/glb/${productId}`;
+    // Marquer le produit comme ayant un GLB stocké
+    try {
+      const Product = require('../models/Product');
+      await Product.findOneAndUpdate(
+        { id: productId },
+        { $set: { glbUrl: 'stored' } }
+      );
+      console.log(`[3D] Produit ${productId} marqué glbUrl=stored`);
+    } catch (updateErr) {
+      console.error(`[3D] Erreur update produit: ${updateErr.message}`);
+      // Non bloquant — le GLB est quand même sauvé
+    }
 
-    // Mettre à jour le produit avec l'URL permanente
-    const Product = require('../models/Product');
-    await Product.findOneAndUpdate({ id: productId }, { $set: { glbUrl } });
-
-    console.log(`[generate3d] Terminé ! GLB permanent : ${glbUrl}`);
-    res.json({ glbUrl });
+    console.log(`[3D] TERMINÉ — produit ${productId}`);
+    res.json({ success: true, glbUrl: 'stored', size: buffer.length });
 
   } catch (err) {
-    console.error('[generate3d] Erreur:', err.message);
+    console.error('[3D] Erreur globale:', err.message);
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Erreur lors de la génération 3D: ' + err.message });
+      res.status(500).json({ error: 'Erreur génération 3D: ' + err.message });
     }
   }
 });

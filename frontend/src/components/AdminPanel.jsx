@@ -300,7 +300,7 @@ export default function AdminPanel({ adminPassword }) {
               }}
                 onClick={() => p.glbUrl && setViewing3D(p)}
                 title={p.glbUrl
-                  ? (p.glbUrl.includes('/api/glb/') ? 'Permanent (MongoDB) — Cliquer pour voir' : 'Temporaire (fal.ai) — Regénérer')
+                  ? (p.glbUrl === 'stored' ? 'Permanent (MongoDB)' : 'Disponible')
                   : 'Pas encore généré'}
               >
                 {p.glbUrl
@@ -393,7 +393,7 @@ export default function AdminPanel({ adminPassword }) {
                           disabled={generating3d === product.id}
                           aria-label={product.glbUrl ? `Voir ${product.name} en 3D` : `Générer 3D pour ${product.name}`}
                           title={product.glbUrl
-                            ? (product.glbUrl.includes('/api/glb/') ? '3D permanent (MongoDB) — Cliquer pour voir' : '3D temporaire — Regénérer pour rendre permanent')
+                            ? (product.glbUrl === 'stored' ? '3D stocké (permanent) — Cliquer pour voir' : '3D disponible — Cliquer pour voir')
                             : 'Générer 3D (~60s)'}
                         >
                           {generating3d === product.id
