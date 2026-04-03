@@ -58,7 +58,7 @@ async function generateInteriorRender({ prompt, roomImageBase64, roomImageMime =
     contents: [{ parts }],
     generationConfig: {
       responseModalities: ['IMAGE', 'TEXT'],
-      temperature: 0.5,
+      temperature: 1,
     },
   };
 

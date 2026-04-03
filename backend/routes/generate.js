@@ -30,18 +30,20 @@ function buildExpertPrompt(roomDimensions, selectedProducts) {
     `- "${product.name}" (${product.lengthCm}×${product.depthCm}cm): ${position}`
   ).join('\n');
 
-  return `Place the furniture shown in the reference images into the room photo. Generate a single photorealistic interior photograph — it must look like a real photo, not a render.
+  return `Place the furniture from the reference images into the room photo. The result must look like a real interior photograph taken by a professional real estate photographer — not a 3D render or CGI.
 
-Room dimensions: ${widthM}m wide × ${depthM}m deep${heightM ? ` × ${heightM}m high` : ''}.
+Room: ${widthM}m wide × ${depthM}m deep${heightM ? `, ${heightM}m ceiling` : ''}.
 
-WHERE TO PLACE EACH PIECE:
+PLACEMENT:
 ${placements}
 
+STYLE: Architectural interior photography, shot on a Canon EOS R5 with a 24mm wide-angle lens, natural lighting matching the room photo, sharp focus, realistic shadows and reflections.
+
 RULES:
-- The room must stay IDENTICAL to the original photo — same walls, floor, ceiling, windows, lighting. Change nothing.
-- Each furniture piece must look EXACTLY like its reference image — same color, same material, same shape, same legs. Do not invent or substitute anything.
-- Scale furniture realistically: use the dimensions above relative to the room size.
-- Furniture must cast natural shadows that match the room's existing light direction.
+- Keep the room IDENTICAL — same walls, floor, ceiling, windows, lighting, perspective. Change absolutely nothing about the room.
+- Each furniture piece must match its reference image exactly — same color, same material, same texture, same shape, same legs.
+- Scale each piece realistically using the cm dimensions above relative to the room size.
+- Furniture casts soft natural shadows consistent with the room's visible light source.
 - Do not add any extra objects, people, text, or watermarks.`;
 }
 

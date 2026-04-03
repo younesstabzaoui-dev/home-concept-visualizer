@@ -3,12 +3,12 @@ import { ArrowLeft, MapPin, Lightbulb } from 'lucide-react'
 import { buildPromptPreview } from '../utils/promptBuilder.js'
 
 const PLACEMENT_SUGGESTIONS = [
-  'Contre le mur gauche, face à la fenêtre',
-  'Au centre de la pièce',
-  'Contre le mur du fond',
-  'Contre le mur droit',
-  'En angle, dans le coin gauche',
-  'Face à l\'entrée',
+  'Contre le mur de gauche, sous la fenêtre',
+  'Au centre de la pièce, face au mur du fond',
+  'Contre le mur du fond, centré',
+  'Contre le mur de droite, à côté de la porte',
+  'Dans le coin gauche, en angle',
+  'Face à l\'entrée, au milieu de la pièce',
 ]
 
 const styles = {
