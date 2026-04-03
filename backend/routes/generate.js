@@ -52,8 +52,8 @@ RULES:
  */
 async function compressImage(buffer) {
   return await sharp(buffer)
-    .resize({ width: 2048, withoutEnlargement: true })
-    .jpeg({ quality: 92 })
+    .resize({ width: 1536, withoutEnlargement: true })
+    .jpeg({ quality: 90 })
     .toBuffer();
 }
 
