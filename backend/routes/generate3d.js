@@ -50,6 +50,20 @@ router.post('/', requireAdmin, async (req, res) => {
       return res.status(503).json({ error: 'FAL_KEY non configuré.' });
     }
 
+    // Attendre que MongoDB soit connecté (max 15s — cold start Render)
+    if (mongoose.connection.readyState !== 1) {
+      console.log('[3D] Attente connexion MongoDB...');
+      for (let i = 0; i < 15; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        if (mongoose.connection.readyState === 1) break;
+      }
+      if (mongoose.connection.readyState !== 1) {
+        console.error('[3D] MongoDB toujours non connecté après 15s');
+        return res.status(503).json({ error: 'Base de données non disponible. Réessayez dans 30 secondes.' });
+      }
+      console.log('[3D] MongoDB connecté OK');
+    }
+
     console.log(`[3D] 1/3 Génération TRELLIS — produit ${productId}`);
 
     const result = await fal.subscribe('fal-ai/trellis', {
@@ -75,10 +89,16 @@ router.post('/', requireAdmin, async (req, res) => {
 
     console.log(`[3D] 2/3 Téléchargement GLB: ${falGlbUrl.substring(0, 80)}...`);
 
-    // Vérifier MongoDB
+    // Vérifier MongoDB (re-check après la longue génération fal.ai)
     if (mongoose.connection.readyState !== 1) {
-      console.error('[3D] MongoDB NON CONNECTÉ — impossible de stocker le GLB');
-      return res.status(500).json({ error: 'Base de données non connectée. Le GLB ne peut pas être sauvegardé.' });
+      console.log('[3D] MongoDB déconnecté après génération, attente reconnexion...');
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        if (mongoose.connection.readyState === 1) break;
+      }
+      if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({ error: 'Base de données non disponible. Réessayez.' });
+      }
     }
 
     // Télécharger le fichier GLB
