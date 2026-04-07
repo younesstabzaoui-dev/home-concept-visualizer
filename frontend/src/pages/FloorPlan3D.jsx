@@ -183,12 +183,14 @@ function ParquetFloor({ width, depth, preset, color }) {
     Object.values(textures).forEach(t => {
       t.wrapS = t.wrapT = THREE.RepeatWrapping
       t.anisotropy = 16
-      // Le pattern du parquet Polyhaven fait ~1.5m, on répète 1x par 1.5m
+      // Rotation 90° pour orienter les lattes horizontalement
+      t.center.set(0.5, 0.5)
+      t.rotation = Math.PI / 2
       t.repeat.set(Math.max(2, width / 2), Math.max(2, depth / 2))
     })
   }, [textures, width, depth])
 
-  const tint = PARQUET_PRESETS[preset]?.tint || color || '#C9A572'
+  const tint = color || PARQUET_PRESETS[preset]?.tint || '#C9A572'
 
   return (
     <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
@@ -792,25 +794,32 @@ export default function FloorPlan3D() {
 
             {/* Sélecteur de presets parquet */}
             {floorType === 'parquet' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginBottom: '10px' }}>
-                {Object.entries(PARQUET_PRESETS).map(([key, preset]) => (
-                  <button
-                    key={key}
-                    onClick={() => setFloorPreset(key)}
-                    title={preset.name}
-                    style={{
-                      aspectRatio: '1',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      border: `2px solid ${floorPreset === key ? '#FFD700' : 'transparent'}`,
-                      backgroundColor: preset.tint,
-                      backgroundImage: `linear-gradient(90deg, transparent 48%, rgba(0,0,0,0.15) 50%, transparent 52%), linear-gradient(0deg, transparent 48%, rgba(0,0,0,0.15) 50%, transparent 52%)`,
-                      backgroundSize: '6px 6px',
-                      padding: 0,
-                    }}
-                  />
-                ))}
-              </div>
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginBottom: '10px' }}>
+                  {Object.entries(PARQUET_PRESETS).map(([key, preset]) => (
+                    <button
+                      key={key}
+                      onClick={() => { setFloorPreset(key); setFloorColor(preset.tint) }}
+                      title={preset.name}
+                      style={{
+                        aspectRatio: '1',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        border: `2px solid ${floorPreset === key ? '#FFD700' : 'transparent'}`,
+                        backgroundColor: preset.tint,
+                        backgroundImage: `linear-gradient(90deg, transparent 48%, rgba(0,0,0,0.15) 50%, transparent 52%), linear-gradient(0deg, transparent 48%, rgba(0,0,0,0.15) 50%, transparent 52%)`,
+                        backgroundSize: '6px 6px',
+                        padding: 0,
+                      }}
+                    />
+                  ))}
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#888', fontSize: '12px' }}>
+                  Teinte personnalisée
+                  <input type="color" value={floorColor} onChange={e => { setFloorColor(e.target.value); setFloorPreset(null) }}
+                    style={{ width: '36px', height: '28px', border: 'none', borderRadius: '4px', cursor: 'pointer', backgroundColor: 'transparent' }} />
+                </label>
+              </>
             )}
 
             {floorType === 'carrelage' && (
