@@ -149,7 +149,7 @@ function OpeningWrapper({ op, position, rotation, dims, isSelected, onSelect, on
       {op.type === 'fenetre' && <WindowDecoration w={dims.w} h={dims.h} isBaie={false} isSelected={isSelected} />}
       {op.type === 'baie' && <WindowDecoration w={dims.w} h={dims.h} isBaie={true} isSelected={isSelected} />}
       {op.type === 'porte' && <DoorDecoration w={dims.w} h={dims.h} isSelected={isSelected} />}
-      {op.type === 'radiateur' && <RadiatorDecoration w={dims.w} h={dims.h} isSelected={isSelected} />}
+      {op.type.startsWith('radiateur') && <RadiatorDecoration w={dims.w} h={dims.h} isSelected={isSelected} />}
     </group>
   )
 }
@@ -170,19 +170,21 @@ function getOpeningDims(type) {
   return { ...OPENING_DIMS[type], type }
 }
 
-// ─── Sol avec texture parquet ────────────────────────────────────────────────
+// ─── Sol avec texture parquet (Polyhaven 2K) ─────────────────────────────────
 function ParquetFloor({ width, depth, preset, color }) {
   const textures = useTexture({
-    map: '/textures/oak-light.jpg',
-    bumpMap: '/textures/oak-bump.jpg',
-    roughnessMap: '/textures/oak-roughness.jpg',
+    map: '/textures/parquet-diff.jpg',
+    normalMap: '/textures/parquet-nor.jpg',
+    roughnessMap: '/textures/parquet-rough.jpg',
   })
 
-  // Configurer les textures (répétition)
+  // Configurer les textures (répétition pour parquet réaliste)
   useMemo(() => {
     Object.values(textures).forEach(t => {
       t.wrapS = t.wrapT = THREE.RepeatWrapping
-      t.repeat.set(Math.max(2, width / 1.5), Math.max(2, depth / 1.5))
+      t.anisotropy = 16
+      // Le pattern du parquet Polyhaven fait ~1.5m, on répète 1x par 1.5m
+      t.repeat.set(Math.max(2, width / 2), Math.max(2, depth / 2))
     })
   }, [textures, width, depth])
 
@@ -193,12 +195,12 @@ function ParquetFloor({ width, depth, preset, color }) {
       <planeGeometry args={[width, depth]} />
       <meshStandardMaterial
         map={textures.map}
-        bumpMap={textures.bumpMap}
+        normalMap={textures.normalMap}
         roughnessMap={textures.roughnessMap}
         color={tint}
-        roughness={0.8}
+        roughness={0.85}
         metalness={0}
-        bumpScale={0.02}
+        normalScale={[0.6, 0.6]}
       />
     </mesh>
   )
@@ -256,7 +258,8 @@ function Room({ width, depth, wallH, floorType, floorPreset, floorColor, wallCol
         const wallLen = (op.wall === 'back' || op.wall === 'front') ? width : depth
         const xPos = op.xOffset * (wallLen / 2 - d.w / 2 - 0.1)
         const wallOffset = 0.04
-        const yPos = d.yBase ? d.h / 2 + 0.001 : d.yCenter
+        // Pour la porte (yBase=true), wrapper à y=0 → DoorDecoration positionne le panneau à h/2
+        const yPos = d.yBase ? 0 : d.yCenter
 
         let pos, rot
         if (op.wall === 'back') {
@@ -362,10 +365,14 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitE
     >
       {isSelected && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-          <ringGeometry args={[Math.max(halfW, halfD) * 0.9, Math.max(halfW, halfD) * 1.0, 32]} />
-          <meshBasicMaterial color="#FFD700" transparent opacity={0.8} />
+          <ringGeometry args={[Math.max(halfW, halfD) * 0.95, Math.max(halfW, halfD) * 1.05, 32]} />
+          <meshBasicMaterial color="#FFD700" transparent opacity={0.9} />
         </mesh>
       )}
+      {/* Collider invisible plus grand pour faciliter la sélection (~1.2m de haut) */}
+      <mesh visible={false} position={[0, 0.6, 0]}>
+        <boxGeometry args={[halfW * 2 + 0.1, 1.2, halfD * 2 + 0.1]} />
+      </mesh>
       <primitive object={cloned} scale={scale} position={[0, yOffset, 0]} />
     </group>
   )
@@ -511,18 +518,34 @@ const btnRound = {
   fontWeight: '500',
 }
 
+const STORAGE_KEY = 'home-concept-3d-composition-v1'
+
+function loadSavedComposition() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
 export default function FloorPlan3D() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
   const [products, setProducts] = useState([])
   const [loadingProducts, setLoadingProducts] = useState(true)
-  const [roomW, setRoomW] = useState(5)
-  const [roomD, setRoomD] = useState(4)
-  const [wallH, setWallH] = useState(2.5)
-  const [roomWInput, setRoomWInput] = useState('5')
-  const [roomDInput, setRoomDInput] = useState('4')
-  const [wallHInput, setWallHInput] = useState('2.5')
+
+  // Charger l'état sauvegardé au démarrage
+  const saved = useMemo(() => loadSavedComposition(), [])
+
+  const [roomW, setRoomW] = useState(saved?.roomW ?? 5)
+  const [roomD, setRoomD] = useState(saved?.roomD ?? 4)
+  const [wallH, setWallH] = useState(saved?.wallH ?? 2.5)
+  const [roomWInput, setRoomWInput] = useState(String(saved?.roomW ?? 5))
+  const [roomDInput, setRoomDInput] = useState(String(saved?.roomD ?? 4))
+  const [wallHInput, setWallHInput] = useState(String(saved?.wallH ?? 2.5))
   const [placedItems, setPlacedItems] = useState([])
   const [selectedId, setSelectedId] = useState(null)
   const [selectedOpeningId, setSelectedOpeningId] = useState(null)
@@ -530,20 +553,64 @@ export default function FloorPlan3D() {
   const [sidebarTab, setSidebarTab] = useState('meubles')
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  // Personnalisation
-  const [floorType, setFloorType] = useState('parquet')
-  const [floorPreset, setFloorPreset] = useState('chene-clair')
-  const [floorColor, setFloorColor] = useState('#E0E0E0')
-  const [wallColor, setWallColor] = useState('#F5F3F0')
-  const [openings, setOpenings] = useState([])
+  // Personnalisation (chargée du localStorage si dispo)
+  const [floorType, setFloorType] = useState(saved?.floorType ?? 'parquet')
+  const [floorPreset, setFloorPreset] = useState(saved?.floorPreset ?? 'chene-clair')
+  const [floorColor, setFloorColor] = useState(saved?.floorColor ?? '#E0E0E0')
+  const [wallColor, setWallColor] = useState(saved?.wallColor ?? '#F5F3F0')
+  const [openings, setOpenings] = useState(saved?.openings ?? [])
   const [openingWall, setOpeningWall] = useState('back')
+
+  // Mémorise les meubles sauvegardés (sans le glbUrl/scene) pour les restaurer après chargement des produits
+  const savedItemsRef = useRef(saved?.placedItems ?? [])
 
   useEffect(() => {
     fetch(API_BASE + '/api/products')
       .then(r => r.json())
-      .then(data => { setProducts(data.filter(p => p.glbUrl)); setLoadingProducts(false) })
+      .then(data => {
+        const validProducts = data.filter(p => p.glbUrl)
+        setProducts(validProducts)
+        setLoadingProducts(false)
+        // Restaurer les meubles sauvegardés en récupérant les produits actuels
+        if (savedItemsRef.current.length > 0) {
+          const restored = savedItemsRef.current
+            .map(saved => {
+              const product = validProducts.find(p => p.id === saved.productId)
+              if (!product) return null
+              return {
+                id: saved.id,
+                product,
+                position: saved.position,
+                rotation: saved.rotation,
+              }
+            })
+            .filter(Boolean)
+          setPlacedItems(restored)
+        }
+      })
       .catch(() => setLoadingProducts(false))
   }, [])
+
+  // Sauvegarde automatique dans localStorage à chaque changement
+  useEffect(() => {
+    // Ne pas sauvegarder pendant le chargement initial
+    if (loadingProducts) return
+    try {
+      const composition = {
+        roomW, roomD, wallH,
+        floorType, floorPreset, floorColor, wallColor,
+        openings,
+        // Sauvegarder uniquement les références produits (pas les objets complets)
+        placedItems: placedItems.map(i => ({
+          id: i.id,
+          productId: i.product.id,
+          position: i.position,
+          rotation: i.rotation,
+        })),
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(composition))
+    } catch {}
+  }, [roomW, roomD, wallH, floorType, floorPreset, floorColor, wallColor, openings, placedItems, loadingProducts])
 
   const handlePlaceItem = (position) => {
     if (!placing) return
