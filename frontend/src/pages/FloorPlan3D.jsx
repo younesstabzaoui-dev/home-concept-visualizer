@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, Suspense, useCallback } from 'react'
+import React, { useState, useEffect, useRef, Suspense, useCallback, useMemo } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
-import { OrbitControls, useGLTF, Environment, Grid } from '@react-three/drei'
-import { Loader2, Plus, Trash2, RotateCw, ArrowLeft, Sofa, Settings, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { OrbitControls, useGLTF, Environment, Grid, useTexture } from '@react-three/drei'
+import { Loader2, Plus, Trash2, RotateCw, ArrowLeft, Sofa, Settings, ChevronUp, ChevronDown, X, Thermometer } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import API_BASE from '../config'
@@ -16,33 +16,44 @@ function useIsMobile(breakpoint = 768) {
   return isMobile
 }
 
+function useIsTablet() {
+  const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024)
+  useEffect(() => {
+    const onResize = () => setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1024)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return isTablet
+}
+
+// Presets de parquet (couleur appliquée à la même texture base de chêne)
+const PARQUET_PRESETS = {
+  'chene-clair':  { name: 'Chêne clair',  tint: '#C9A572', repeat: 4 },
+  'chene-fonce':  { name: 'Chêne foncé',  tint: '#7A5236', repeat: 4 },
+  'noyer':        { name: 'Noyer',        tint: '#5C3A24', repeat: 4 },
+  'hetre':        { name: 'Hêtre',        tint: '#D4B589', repeat: 4 },
+  'gris':         { name: 'Gris vintage', tint: '#9A938A', repeat: 4 },
+}
+
 // ─── Fenêtre décorative sur un mur ───────────────────────────────────────────
-function WindowDecoration({ position, rotation, w = 1.2, h = 0.9, isBaie = false }) {
+function WindowDecoration({ w = 1.2, h = 0.9, isBaie = false, isSelected }) {
   const frameT = 0.05
-  const frameColor = '#E0E0E0'
+  const frameColor = isSelected ? '#FFD700' : '#E0E0E0'
   return (
-    <group position={position} rotation={rotation}>
-      {/* Fond sombre pour contraste */}
+    <group>
       <mesh position={[0, 0, -0.02]}>
         <planeGeometry args={[w + 0.06, h + 0.06]} />
         <meshStandardMaterial color="#5A7080" />
       </mesh>
-      {/* Vitre */}
       <mesh position={[0, 0, 0.01]}>
         <planeGeometry args={[w - frameT * 2, h - frameT * 2]} />
         <meshStandardMaterial color={isBaie ? '#90C8E8' : '#A8CCE0'} transparent opacity={isBaie ? 0.45 : 0.6} metalness={0.15} roughness={0.0} />
       </mesh>
-      {/* Cadre haut */}
       <mesh position={[0, h / 2, 0.02]}><boxGeometry args={[w, frameT, 0.05]} /><meshStandardMaterial color={frameColor} /></mesh>
-      {/* Cadre bas */}
       <mesh position={[0, -h / 2, 0.02]}><boxGeometry args={[w, frameT, 0.05]} /><meshStandardMaterial color={frameColor} /></mesh>
-      {/* Cadre gauche */}
       <mesh position={[-w / 2, 0, 0.02]}><boxGeometry args={[frameT, h, 0.05]} /><meshStandardMaterial color={frameColor} /></mesh>
-      {/* Cadre droit */}
       <mesh position={[w / 2, 0, 0.02]}><boxGeometry args={[frameT, h, 0.05]} /><meshStandardMaterial color={frameColor} /></mesh>
-      {/* Croisillon horizontal */}
-      <mesh position={[0, isBaie ? 0 : 0, 0.02]}><boxGeometry args={[w, frameT * 0.6, 0.04]} /><meshStandardMaterial color={frameColor} /></mesh>
-      {/* Croisillon vertical (baie vitrée = 2 panneaux) */}
+      <mesh position={[0, 0, 0.02]}><boxGeometry args={[w, frameT * 0.6, 0.04]} /><meshStandardMaterial color={frameColor} /></mesh>
       {isBaie && (
         <mesh position={[0, 0, 0.02]}><boxGeometry args={[frameT * 0.6, h, 0.04]} /><meshStandardMaterial color={frameColor} /></mesh>
       )}
@@ -51,111 +62,228 @@ function WindowDecoration({ position, rotation, w = 1.2, h = 0.9, isBaie = false
 }
 
 // ─── Porte décorative sur un mur ─────────────────────────────────────────────
-function DoorDecoration({ position, rotation, w = 0.9, h = 2.1 }) {
-  // position = base de la porte (y=0 = sol)
+function DoorDecoration({ w = 0.9, h = 2.1, isSelected }) {
   const frameT = 0.06
+  const frameColor = isSelected ? '#FFD700' : '#E0E0E0'
   return (
-    <group position={position} rotation={rotation}>
-      {/* Fond sombre pour contraste */}
+    <group>
       <mesh position={[0, h / 2, -0.02]}>
         <planeGeometry args={[w + 0.1, h + 0.08]} />
         <meshStandardMaterial color="#4A4A4A" />
       </mesh>
-      {/* Panneau porte (bois chaud) */}
       <mesh position={[0, h / 2, 0.01]}>
         <planeGeometry args={[w - 0.03, h - 0.02]} />
         <meshStandardMaterial color="#C8A87A" roughness={0.85} />
       </mesh>
-      {/* Montant gauche */}
-      <mesh position={[-w / 2 - frameT / 2, h / 2, 0.03]}><boxGeometry args={[frameT, h + frameT, 0.06]} /><meshStandardMaterial color="#E0E0E0" /></mesh>
-      {/* Montant droit */}
-      <mesh position={[w / 2 + frameT / 2, h / 2, 0.03]}><boxGeometry args={[frameT, h + frameT, 0.06]} /><meshStandardMaterial color="#E0E0E0" /></mesh>
-      {/* Linteau haut */}
-      <mesh position={[0, h + frameT / 2, 0.03]}><boxGeometry args={[w + frameT * 2, frameT, 0.06]} /><meshStandardMaterial color="#E0E0E0" /></mesh>
-      {/* Poignée */}
+      <mesh position={[-w / 2 - frameT / 2, h / 2, 0.03]}><boxGeometry args={[frameT, h + frameT, 0.06]} /><meshStandardMaterial color={frameColor} /></mesh>
+      <mesh position={[w / 2 + frameT / 2, h / 2, 0.03]}><boxGeometry args={[frameT, h + frameT, 0.06]} /><meshStandardMaterial color={frameColor} /></mesh>
+      <mesh position={[0, h + frameT / 2, 0.03]}><boxGeometry args={[w + frameT * 2, frameT, 0.06]} /><meshStandardMaterial color={frameColor} /></mesh>
       <mesh position={[w / 2 - 0.12, h / 2, 0.07]}>
-        <cylinderGeometry args={[0.02, 0.02, 0.12, 8]} rotation={[0, 0, Math.PI / 2]} />
+        <cylinderGeometry args={[0.02, 0.02, 0.12, 8]} />
         <meshStandardMaterial color="#B8922A" metalness={0.9} roughness={0.1} />
       </mesh>
     </group>
   )
 }
 
-// ─── Pièce 3D ────────────────────────────────────────────────────────────────
-function Room({ width, depth, wallH, floorType, floorColor, wallColor, openings }) {
-  const wallT = 0.05
+// ─── Radiateur décoratif ─────────────────────────────────────────────────────
+function RadiatorDecoration({ w = 1.0, h = 0.6, depth = 0.08, isSelected }) {
+  // Radiateur acier blanc avec ailettes verticales
+  const finCount = Math.max(8, Math.floor(w / 0.07))
+  const finSpacing = w / finCount
+  const color = isSelected ? '#FFE680' : '#F5F5F5'
+  return (
+    <group>
+      <mesh position={[0, 0, depth / 2]}>
+        <boxGeometry args={[w, h, depth]} />
+        <meshStandardMaterial color={color} metalness={0.4} roughness={0.4} />
+      </mesh>
+      {/* Ailettes verticales */}
+      {Array.from({ length: finCount - 1 }).map((_, i) => (
+        <mesh key={i} position={[-w / 2 + (i + 1) * finSpacing, 0, depth + 0.005]}>
+          <boxGeometry args={[0.008, h * 0.92, 0.005]} />
+          <meshStandardMaterial color="#CCCCCC" />
+        </mesh>
+      ))}
+      {/* Tuyaux */}
+      <mesh position={[-w / 2 + 0.06, -h / 2 - 0.04, depth / 2]}>
+        <cylinderGeometry args={[0.012, 0.012, 0.08, 12]} />
+        <meshStandardMaterial color="#CCCCCC" metalness={0.7} roughness={0.3} />
+      </mesh>
+      <mesh position={[w / 2 - 0.06, -h / 2 - 0.04, depth / 2]}>
+        <cylinderGeometry args={[0.012, 0.012, 0.08, 12]} />
+        <meshStandardMaterial color="#CCCCCC" metalness={0.7} roughness={0.3} />
+      </mesh>
+    </group>
+  )
+}
 
-  const floorRoughness = floorType === 'carrelage' ? 0.15 : 0.85
-  const floorMetalness = floorType === 'carrelage' ? 0.08 : 0
+// ─── Wrapper d'ouverture cliquable et draggable ──────────────────────────────
+function OpeningWrapper({ op, position, rotation, dims, isSelected, onSelect, onDrag, dragEnabled, setOrbitEnabled }) {
+  const isDragging = useRef(false)
+  const { gl } = useThree()
+
+  return (
+    <group
+      position={position}
+      rotation={rotation}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        onSelect(op.id)
+        if (!dragEnabled) return
+        isDragging.current = true
+        setOrbitEnabled(false)
+        gl.domElement.style.cursor = 'grabbing'
+      }}
+      onPointerUp={() => {
+        isDragging.current = false
+        setOrbitEnabled(true)
+        gl.domElement.style.cursor = 'auto'
+      }}
+      onPointerMove={(e) => {
+        if (!isDragging.current) return
+        e.stopPropagation()
+        onDrag(op.id, e.point)
+      }}
+    >
+      {op.type === 'fenetre' && <WindowDecoration w={dims.w} h={dims.h} isBaie={false} isSelected={isSelected} />}
+      {op.type === 'baie' && <WindowDecoration w={dims.w} h={dims.h} isBaie={true} isSelected={isSelected} />}
+      {op.type === 'porte' && <DoorDecoration w={dims.w} h={dims.h} isSelected={isSelected} />}
+      {op.type === 'radiateur' && <RadiatorDecoration w={dims.w} h={dims.h} isSelected={isSelected} />}
+    </group>
+  )
+}
+
+// Dimensions standards par type d'ouverture
+const OPENING_DIMS = {
+  fenetre:        { w: 1.2, h: 1.1, yCenter: 1.75, yBase: false },
+  baie:           { w: 1.8, h: 2.2, yCenter: 1.1,  yBase: false },
+  porte:          { w: 0.9, h: 2.1, yCenter: null, yBase: true },
+  'radiateur-petit':  { w: 0.6, h: 0.5, yCenter: 0.35, yBase: false },
+  'radiateur-moyen':  { w: 1.0, h: 0.6, yCenter: 0.35, yBase: false },
+  'radiateur-grand':  { w: 1.5, h: 0.6, yCenter: 0.35, yBase: false },
+  'radiateur-vertical': { w: 0.5, h: 1.8, yCenter: 1.0, yBase: false },
+}
+
+function getOpeningDims(type) {
+  if (type.startsWith('radiateur')) return { ...OPENING_DIMS[type], type: 'radiateur' }
+  return { ...OPENING_DIMS[type], type }
+}
+
+// ─── Sol avec texture parquet ────────────────────────────────────────────────
+function ParquetFloor({ width, depth, preset, color }) {
+  const textures = useTexture({
+    map: '/textures/oak-light.jpg',
+    bumpMap: '/textures/oak-bump.jpg',
+    roughnessMap: '/textures/oak-roughness.jpg',
+  })
+
+  // Configurer les textures (répétition)
+  useMemo(() => {
+    Object.values(textures).forEach(t => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping
+      t.repeat.set(Math.max(2, width / 1.5), Math.max(2, depth / 1.5))
+    })
+  }, [textures, width, depth])
+
+  const tint = PARQUET_PRESETS[preset]?.tint || color || '#C9A572'
+
+  return (
+    <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+      <planeGeometry args={[width, depth]} />
+      <meshStandardMaterial
+        map={textures.map}
+        bumpMap={textures.bumpMap}
+        roughnessMap={textures.roughnessMap}
+        color={tint}
+        roughness={0.8}
+        metalness={0}
+        bumpScale={0.02}
+      />
+    </mesh>
+  )
+}
+
+// ─── Pièce 3D ────────────────────────────────────────────────────────────────
+function Room({ width, depth, wallH, floorType, floorPreset, floorColor, wallColor, openings, selectedOpeningId, onSelectOpening, onDragOpening, setOrbitEnabled }) {
+  const wallT = 0.05
 
   return (
     <group>
       {/* Sol */}
-      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-        <planeGeometry args={[width, depth]} />
-        <meshStandardMaterial color={floorColor} roughness={floorRoughness} metalness={floorMetalness} />
-      </mesh>
+      {floorType === 'parquet' ? (
+        <Suspense fallback={
+          <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+            <planeGeometry args={[width, depth]} />
+            <meshStandardMaterial color={floorColor} roughness={0.85} />
+          </mesh>
+        }>
+          <ParquetFloor width={width} depth={depth} preset={floorPreset} color={floorColor} />
+        </Suspense>
+      ) : (
+        <>
+          <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+            <planeGeometry args={[width, depth]} />
+            <meshStandardMaterial color={floorColor} roughness={0.15} metalness={0.08} />
+          </mesh>
+          <Grid
+            position={[0, 0.001, 0]}
+            args={[width, depth]}
+            cellSize={0.6} cellThickness={0.8} cellColor="#999"
+            sectionSize={1.2} sectionThickness={0}
+            fadeDistance={30} infiniteGrid={false}
+          />
+        </>
+      )}
 
-      {/* Grille carrelage (joints) ou parquet (lattes) */}
-      <Grid
-        position={[0, 0.001, 0]}
-        args={[width, depth]}
-        cellSize={floorType === 'carrelage' ? 0.6 : 0.12}
-        cellThickness={floorType === 'carrelage' ? 0.8 : 0.3}
-        cellColor={floorType === 'carrelage' ? '#999' : '#00000022'}
-        sectionSize={floorType === 'carrelage' ? 1.2 : 2.4}
-        sectionThickness={0}
-        fadeDistance={30}
-        infiniteGrid={false}
-      />
-
-      {/* Mur arrière */}
+      {/* Murs */}
       <mesh receiveShadow position={[0, wallH / 2, -depth / 2]}>
         <boxGeometry args={[width, wallH, wallT]} />
         <meshStandardMaterial color={wallColor} roughness={0.9} />
       </mesh>
-      {/* Mur gauche */}
       <mesh receiveShadow position={[-width / 2, wallH / 2, 0]}>
         <boxGeometry args={[wallT, wallH, depth]} />
         <meshStandardMaterial color={wallColor} roughness={0.9} />
       </mesh>
-      {/* Mur droit */}
       <mesh receiveShadow position={[width / 2, wallH / 2, 0]}>
         <boxGeometry args={[wallT, wallH, depth]} />
         <meshStandardMaterial color={wallColor} roughness={0.9} />
       </mesh>
 
-      {/* Ouvertures (fenêtres / portes / baies) */}
+      {/* Ouvertures */}
       {openings.map(op => {
-        const xPos = op.xOffset * (op.wall === 'back' ? width / 2 - 0.8 : depth / 2 - 0.8)
-
-        // Dimensions par type
-        const dims = {
-          fenetre: { w: 1.2, h: 1.1, yCenter: 1.2 + 1.1 / 2 }, // surélevée (centre à 1.75m)
-          baie:    { w: 1.8, h: 2.2, yCenter: 2.2 / 2 },         // au sol (centre à 1.1m)
-          porte:   { w: 0.9, h: 2.1, yBase: 0 },                  // au sol (base à 0)
-        }
-        const d = dims[op.type] || dims.porte
-
+        const d = getOpeningDims(op.type)
+        const wallLen = (op.wall === 'back' || op.wall === 'front') ? width : depth
+        const xPos = op.xOffset * (wallLen / 2 - d.w / 2 - 0.1)
         const wallOffset = 0.04
-        let pos, rot
+        const yPos = d.yBase ? d.h / 2 + 0.001 : d.yCenter
 
+        let pos, rot
         if (op.wall === 'back') {
-          pos = [xPos, d.yCenter !== undefined ? d.yCenter : 0, -depth / 2 + wallOffset]
+          pos = [xPos, yPos, -depth / 2 + wallOffset]
           rot = [0, 0, 0]
         } else if (op.wall === 'left') {
-          pos = [-width / 2 + wallOffset, d.yCenter !== undefined ? d.yCenter : 0, xPos]
+          pos = [-width / 2 + wallOffset, yPos, xPos]
           rot = [0, Math.PI / 2, 0]
         } else {
-          pos = [width / 2 - wallOffset, d.yCenter !== undefined ? d.yCenter : 0, xPos]
+          pos = [width / 2 - wallOffset, yPos, xPos]
           rot = [0, -Math.PI / 2, 0]
         }
 
-        // Fenêtre et baie = WindowDecoration (centrée), porte = DoorDecoration (base à y=0)
-        if (op.type === 'fenetre' || op.type === 'baie') {
-          return <WindowDecoration key={op.id} position={pos} rotation={rot} w={d.w} h={d.h} isBaie={op.type === 'baie'} />
-        }
-        return <DoorDecoration key={op.id} position={pos} rotation={rot} w={d.w} h={d.h} />
+        return (
+          <OpeningWrapper
+            key={op.id}
+            op={op}
+            position={pos}
+            rotation={rot}
+            dims={d}
+            isSelected={selectedOpeningId === op.id}
+            onSelect={onSelectOpening}
+            onDrag={onDragOpening}
+            dragEnabled={true}
+            setOrbitEnabled={setOrbitEnabled}
+          />
+        )
       })}
     </group>
   )
@@ -172,7 +300,7 @@ function resolveGlbUrl(product) {
   return product.glbUrl
 }
 
-function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD }) {
+function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitEnabled }) {
   const glbSrc = resolveGlbUrl(item.product)
   const { scene } = useGLTF(glbSrc)
   const cloned = React.useMemo(() => {
@@ -183,36 +311,59 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD }) {
     return s
   }, [scene])
 
-  const { scale, yOffset } = React.useMemo(() => {
+  const { scale, yOffset, halfW, halfD } = React.useMemo(() => {
     const box = new THREE.Box3().setFromObject(cloned)
     const size = new THREE.Vector3()
     box.getSize(size)
     const targetW = (item.product.lengthCm || 100) / 100
     const s = targetW / (size.x || 1)
-    return { scale: s, yOffset: -box.min.y * s }
-  }, [cloned, item.product.lengthCm])
+    // Dimensions réelles du meuble (en mètres)
+    const realW = (item.product.lengthCm || 100) / 100
+    const realD = (item.product.depthCm || 60) / 100
+    return { scale: s, yOffset: -box.min.y * s, halfW: realW / 2, halfD: realD / 2 }
+  }, [cloned, item.product.lengthCm, item.product.depthCm])
 
   const isDragging = useRef(false)
   const { gl } = useThree()
+
+  // Calcule la position clampée en tenant compte de la rotation et la taille du meuble
+  const clampPosition = useCallback((px, pz) => {
+    const cos = Math.abs(Math.cos(item.rotation))
+    const sin = Math.abs(Math.sin(item.rotation))
+    const effectiveHalfW = halfW * cos + halfD * sin
+    const effectiveHalfD = halfW * sin + halfD * cos
+    const x = Math.max(-roomW / 2 + effectiveHalfW, Math.min(roomW / 2 - effectiveHalfW, px))
+    const z = Math.max(-roomD / 2 + effectiveHalfD, Math.min(roomD / 2 - effectiveHalfD, pz))
+    return [x, 0, z]
+  }, [item.rotation, halfW, halfD, roomW, roomD])
 
   return (
     <group
       position={item.position}
       rotation={[0, item.rotation, 0]}
-      onPointerDown={e => { e.stopPropagation(); isDragging.current = true; onSelect(item.id); gl.domElement.style.cursor = 'grabbing' }}
-      onPointerUp={() => { isDragging.current = false; gl.domElement.style.cursor = 'auto' }}
+      onPointerDown={e => {
+        e.stopPropagation()
+        isDragging.current = true
+        onSelect(item.id)
+        setOrbitEnabled(false)
+        gl.domElement.style.cursor = 'grabbing'
+      }}
+      onPointerUp={() => {
+        isDragging.current = false
+        setOrbitEnabled(true)
+        gl.domElement.style.cursor = 'auto'
+      }}
       onPointerMove={e => {
         if (!isDragging.current) return
         e.stopPropagation()
-        const x = Math.max(-roomW / 2 + 0.3, Math.min(roomW / 2 - 0.3, e.point.x))
-        const z = Math.max(-roomD / 2 + 0.3, Math.min(roomD / 2 - 0.3, e.point.z))
-        onMove(item.id, [x, 0, z])
+        const pos = clampPosition(e.point.x, e.point.z)
+        onMove(item.id, pos)
       }}
     >
       {isSelected && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-          <circleGeometry args={[0.6, 32]} />
-          <meshBasicMaterial color="#0A0A0A" transparent opacity={0.15} />
+          <ringGeometry args={[Math.max(halfW, halfD) * 0.9, Math.max(halfW, halfD) * 1.0, 32]} />
+          <meshBasicMaterial color="#FFD700" transparent opacity={0.8} />
         </mesh>
       )}
       <primitive object={cloned} scale={scale} position={[0, yOffset, 0]} />
@@ -231,7 +382,9 @@ function FloorPlane({ onFloorClick, roomW, roomD }) {
 }
 
 // ─── Scène complète ──────────────────────────────────────────────────────────
-function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onMoveItem, onPlaceItem, placing, floorType, floorColor, wallColor, openings }) {
+function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onMoveItem, onPlaceItem, placing, floorType, floorPreset, floorColor, wallColor, openings, selectedOpeningId, onSelectOpening, onDragOpening }) {
+  const [orbitEnabled, setOrbitEnabled] = useState(true)
+
   const handleFloorClick = (e) => {
     if (placing) {
       e.stopPropagation()
@@ -240,6 +393,7 @@ function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onM
       onPlaceItem([x, 0, z])
     } else {
       onSelectItem(null)
+      onSelectOpening(null)
     }
   }
 
@@ -252,24 +406,46 @@ function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onM
         shadow-camera-top={10} shadow-camera-bottom={-10}
       />
       <Environment preset="apartment" />
-      <Room width={roomW} depth={roomD} wallH={wallH} floorType={floorType} floorColor={floorColor} wallColor={wallColor} openings={openings} />
+      <Room
+        width={roomW} depth={roomD} wallH={wallH}
+        floorType={floorType} floorPreset={floorPreset} floorColor={floorColor} wallColor={wallColor}
+        openings={openings}
+        selectedOpeningId={selectedOpeningId}
+        onSelectOpening={onSelectOpening}
+        onDragOpening={onDragOpening}
+        setOrbitEnabled={setOrbitEnabled}
+      />
       <FloorPlane onFloorClick={handleFloorClick} roomW={roomW} roomD={roomD} />
       <Suspense fallback={null}>
         {placedItems.map(item => (
           <Furniture key={item.id} item={item} isSelected={item.id === selectedId}
-            onSelect={onSelectItem} onMove={onMoveItem} roomW={roomW} roomD={roomD} />
+            onSelect={onSelectItem} onMove={onMoveItem}
+            roomW={roomW} roomD={roomD}
+            setOrbitEnabled={setOrbitEnabled}
+          />
         ))}
       </Suspense>
-      <OrbitControls enablePan={false} maxPolarAngle={Math.PI / 2 - 0.05} minDistance={2} maxDistance={Math.max(roomW, roomD) * 1.8} />
+      <OrbitControls
+        enabled={orbitEnabled}
+        enablePan={false}
+        maxPolarAngle={Math.PI / 2 - 0.05}
+        minDistance={2}
+        maxDistance={Math.max(roomW, roomD) * 2.5}
+        touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
+      />
     </>
   )
 }
 
 // ─── Composant principal ─────────────────────────────────────────────────────
 const OPENING_TYPES = [
-  { type: 'fenetre', label: 'Fenêtre', desc: '120×110 cm' },
-  { type: 'baie', label: 'Baie vitrée', desc: '180×220 cm' },
-  { type: 'porte', label: 'Porte', desc: '90×210 cm' },
+  { type: 'fenetre', label: 'Fenêtre', desc: '120×110' },
+  { type: 'baie', label: 'Baie vitrée', desc: '180×220' },
+  { type: 'porte', label: 'Porte', desc: '90×210' },
+  { type: 'radiateur-petit', label: 'Radiateur S', desc: '60×50' },
+  { type: 'radiateur-moyen', label: 'Radiateur M', desc: '100×60' },
+  { type: 'radiateur-grand', label: 'Radiateur L', desc: '150×60' },
+  { type: 'radiateur-vertical', label: 'Radiateur vert.', desc: '50×180' },
 ]
 const WALLS = [
   { id: 'back', label: 'Mur arrière' },
@@ -277,27 +453,87 @@ const WALLS = [
   { id: 'right', label: 'Mur droit' },
 ]
 
+function getOpeningLabel(type) {
+  return OPENING_TYPES.find(t => t.type === type)?.label || type
+}
+
+// ─── Panneau flottant de rotation ────────────────────────────────────────────
+function RotationPanel({ rotation, onChange, onRotateBy, isMobile }) {
+  const degrees = Math.round(((rotation * 180 / Math.PI) % 360 + 360) % 360)
+  return (
+    <div style={{
+      position: 'absolute',
+      bottom: isMobile ? '90px' : '24px',
+      left: '50%', transform: 'translateX(-50%)',
+      backgroundColor: 'rgba(0,0,0,0.85)',
+      color: '#fff', padding: '12px 16px', borderRadius: '12px',
+      display: 'flex', alignItems: 'center', gap: '12px',
+      zIndex: 15, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+      backdropFilter: 'blur(10px)',
+      maxWidth: '92vw',
+    }}>
+      <RotateCw size={16} color="#FFD700" />
+      <button onClick={() => onRotateBy(-15)} style={btnRound}>-15°</button>
+      <button onClick={() => onRotateBy(-1)} style={btnRound}>-1°</button>
+      <input
+        type="range"
+        min={0} max={359} step={1}
+        value={degrees}
+        onChange={e => onChange(Number(e.target.value))}
+        style={{ width: isMobile ? '100px' : '180px', accentColor: '#FFD700' }}
+      />
+      <input
+        type="number"
+        min={0} max={359}
+        value={degrees}
+        onChange={e => {
+          const n = parseInt(e.target.value, 10)
+          if (!isNaN(n)) onChange(n)
+        }}
+        style={{
+          width: '52px', padding: '4px 6px',
+          backgroundColor: '#1a1a1a', border: '1px solid #444',
+          borderRadius: '6px', color: '#fff', fontSize: '13px', textAlign: 'center',
+        }}
+      />
+      <span style={{ color: '#888', fontSize: '12px' }}>°</span>
+      <button onClick={() => onRotateBy(1)} style={btnRound}>+1°</button>
+      <button onClick={() => onRotateBy(15)} style={btnRound}>+15°</button>
+    </div>
+  )
+}
+
+const btnRound = {
+  background: 'rgba(255,255,255,0.1)',
+  border: '1px solid rgba(255,255,255,0.2)',
+  color: '#fff', borderRadius: '6px',
+  padding: '4px 8px', fontSize: '11px', cursor: 'pointer',
+  fontWeight: '500',
+}
+
 export default function FloorPlan3D() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
   const [products, setProducts] = useState([])
   const [loadingProducts, setLoadingProducts] = useState(true)
   const [roomW, setRoomW] = useState(5)
   const [roomD, setRoomD] = useState(4)
   const [wallH, setWallH] = useState(2.5)
-  // Inputs string séparés pour éviter crash Three.js pendant la saisie
   const [roomWInput, setRoomWInput] = useState('5')
   const [roomDInput, setRoomDInput] = useState('4')
   const [wallHInput, setWallHInput] = useState('2.5')
   const [placedItems, setPlacedItems] = useState([])
   const [selectedId, setSelectedId] = useState(null)
+  const [selectedOpeningId, setSelectedOpeningId] = useState(null)
   const [placing, setPlacing] = useState(null)
   const [sidebarTab, setSidebarTab] = useState('meubles')
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   // Personnalisation
   const [floorType, setFloorType] = useState('parquet')
-  const [floorColor, setFloorColor] = useState('#C4A265')
+  const [floorPreset, setFloorPreset] = useState('chene-clair')
+  const [floorColor, setFloorColor] = useState('#E0E0E0')
   const [wallColor, setWallColor] = useState('#F5F3F0')
   const [openings, setOpenings] = useState([])
   const [openingWall, setOpeningWall] = useState('back')
@@ -318,9 +554,21 @@ export default function FloorPlan3D() {
     if (isMobile) setDrawerOpen(false)
   }
 
-  const handleRotate = () => {
+  // Rotation : valeur en degrés (0-360)
+  const handleRotateBy = (deltaDegrees) => {
     if (!selectedId) return
-    setPlacedItems(prev => prev.map(i => i.id === selectedId ? { ...i, rotation: i.rotation + Math.PI / 4 } : i))
+    setPlacedItems(prev => prev.map(i => i.id === selectedId
+      ? { ...i, rotation: i.rotation + (deltaDegrees * Math.PI / 180) }
+      : i
+    ))
+  }
+
+  const handleSetRotation = (degrees) => {
+    if (!selectedId) return
+    setPlacedItems(prev => prev.map(i => i.id === selectedId
+      ? { ...i, rotation: degrees * Math.PI / 180 }
+      : i
+    ))
   }
 
   const handleDelete = () => {
@@ -329,15 +577,55 @@ export default function FloorPlan3D() {
   }
 
   const addOpening = (type) => {
+    const newId = Date.now()
     setOpenings(prev => [...prev, {
-      id: Date.now(), type, wall: openingWall, xOffset: 0,
+      id: newId, type, wall: openingWall, xOffset: 0,
     }])
+    setSelectedOpeningId(newId)
   }
 
-  const removeOpening = (id) => setOpenings(prev => prev.filter(o => o.id !== id))
+  const removeOpening = (id) => {
+    setOpenings(prev => prev.filter(o => o.id !== id))
+    if (selectedOpeningId === id) setSelectedOpeningId(null)
+  }
   const moveOpening = (id, xOffset) => setOpenings(prev => prev.map(o => o.id === id ? { ...o, xOffset } : o))
+  const deleteOpening = (id) => removeOpening(id)
+
+  // Drag d'une ouverture en 3D : détecte automatiquement le mur le plus proche
+  const handleDragOpening = useCallback((id, point) => {
+    setOpenings(prev => prev.map(op => {
+      if (op.id !== id) return op
+
+      // Distances aux 3 murs (back, left, right)
+      const distBack = Math.abs(point.z - (-roomD / 2))
+      const distLeft = Math.abs(point.x - (-roomW / 2))
+      const distRight = Math.abs(point.x - (roomW / 2))
+
+      let newWall = op.wall
+      let newOffset = op.xOffset
+
+      const minDist = Math.min(distBack, distLeft, distRight)
+
+      if (minDist === distBack) {
+        newWall = 'back'
+        const wallLen = roomW
+        newOffset = Math.max(-1, Math.min(1, point.x / (wallLen / 2 - 0.5)))
+      } else if (minDist === distLeft) {
+        newWall = 'left'
+        const wallLen = roomD
+        newOffset = Math.max(-1, Math.min(1, point.z / (wallLen / 2 - 0.5)))
+      } else {
+        newWall = 'right'
+        const wallLen = roomD
+        newOffset = Math.max(-1, Math.min(1, point.z / (wallLen / 2 - 0.5)))
+      }
+
+      return { ...op, wall: newWall, xOffset: newOffset }
+    }))
+  }, [roomW, roomD])
 
   const selectedItem = placedItems.find(i => i.id === selectedId)
+  const selectedOpening = openings.find(o => o.id === selectedOpeningId)
 
   const inputStyle = {
     width: '52px', padding: '4px 8px', backgroundColor: '#1a1a1a',
@@ -426,11 +714,7 @@ export default function FloorPlan3D() {
             <p style={{ color: '#888', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Sol</p>
             <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
               {[['parquet', 'Parquet'], ['carrelage', 'Carrelage']].map(([val, label]) => (
-                <button key={val} onClick={() => {
-                  setFloorType(val)
-                  if (val === 'parquet' && floorColor === '#E0E0E0') setFloorColor('#C4A265')
-                  if (val === 'carrelage' && floorColor === '#C4A265') setFloorColor('#E0E0E0')
-                }} style={{
+                <button key={val} onClick={() => setFloorType(val)} style={{
                   flex: 1, padding: '7px', borderRadius: '6px', fontSize: '12px', fontWeight: '500',
                   cursor: 'pointer', border: `1.5px solid ${floorType === val ? '#aaa' : '#333'}`,
                   backgroundColor: floorType === val ? '#2a2a2a' : '#1a1a1a',
@@ -438,11 +722,37 @@ export default function FloorPlan3D() {
                 }}>{label}</button>
               ))}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#888', fontSize: '12px' }}>
-              Couleur du sol
-              <input type="color" value={floorColor} onChange={e => setFloorColor(e.target.value)}
-                style={{ width: '36px', height: '28px', border: 'none', borderRadius: '4px', cursor: 'pointer', backgroundColor: 'transparent' }} />
-            </label>
+
+            {/* Sélecteur de presets parquet */}
+            {floorType === 'parquet' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginBottom: '10px' }}>
+                {Object.entries(PARQUET_PRESETS).map(([key, preset]) => (
+                  <button
+                    key={key}
+                    onClick={() => setFloorPreset(key)}
+                    title={preset.name}
+                    style={{
+                      aspectRatio: '1',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      border: `2px solid ${floorPreset === key ? '#FFD700' : 'transparent'}`,
+                      backgroundColor: preset.tint,
+                      backgroundImage: `linear-gradient(90deg, transparent 48%, rgba(0,0,0,0.15) 50%, transparent 52%), linear-gradient(0deg, transparent 48%, rgba(0,0,0,0.15) 50%, transparent 52%)`,
+                      backgroundSize: '6px 6px',
+                      padding: 0,
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {floorType === 'carrelage' && (
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#888', fontSize: '12px' }}>
+                Couleur
+                <input type="color" value={floorColor} onChange={e => setFloorColor(e.target.value)}
+                  style={{ width: '36px', height: '28px', border: 'none', borderRadius: '4px', cursor: 'pointer', backgroundColor: 'transparent' }} />
+              </label>
+            )}
           </div>
 
           <div style={{ borderTop: '1px solid #222', paddingTop: '12px' }}>
@@ -598,30 +908,31 @@ export default function FloorPlan3D() {
             </div>
           )}
 
-          {/* Boutons flottants rotation/suppression */}
-          {selectedItem && (
+          {/* Bouton suppression flottant (mobile) */}
+          {(selectedItem || selectedOpening) && (
             <div style={{
-              position: 'absolute', bottom: drawerOpen ? '55%' : '16px', right: '12px',
-              display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 10,
-              transition: 'bottom 300ms ease',
+              position: 'absolute', top: '60px', right: '12px',
+              zIndex: 10,
             }}>
-              <button onClick={handleRotate} style={{
-                width: '48px', height: '48px', borderRadius: '50%',
-                backgroundColor: 'rgba(0,0,0,0.8)', border: '1px solid #444',
-                color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-              }}>
-                <RotateCw size={20} />
-              </button>
-              <button onClick={handleDelete} style={{
-                width: '48px', height: '48px', borderRadius: '50%',
+              <button onClick={() => selectedOpening ? deleteOpening(selectedOpeningId) : handleDelete()} style={{
+                width: '44px', height: '44px', borderRadius: '50%',
                 backgroundColor: 'rgba(80,10,10,0.9)', border: '1px solid #5a1a1a',
                 color: '#ff6b6b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
               }}>
-                <Trash2 size={20} />
+                <Trash2 size={18} />
               </button>
             </div>
+          )}
+
+          {/* Slider rotation flottant (mobile) */}
+          {selectedItem && !drawerOpen && (
+            <RotationPanel
+              rotation={selectedItem.rotation}
+              onChange={handleSetRotation}
+              onRotateBy={handleRotateBy}
+              isMobile={true}
+            />
           )}
 
           <Canvas shadows camera={{ position: [0, 5, 8], fov: 50 }} style={{ backgroundColor: '#D8D4CE' }}>
@@ -630,8 +941,11 @@ export default function FloorPlan3D() {
               placedItems={placedItems} selectedId={selectedId}
               onSelectItem={setSelectedId} onMoveItem={(id, pos) => setPlacedItems(prev => prev.map(i => i.id === id ? { ...i, position: pos } : i))}
               onPlaceItem={handlePlaceItem} placing={placing}
-              floorType={floorType} floorColor={floorColor} wallColor={wallColor}
+              floorType={floorType} floorPreset={floorPreset} floorColor={floorColor} wallColor={wallColor}
               openings={openings}
+              selectedOpeningId={selectedOpeningId}
+              onSelectOpening={setSelectedOpeningId}
+              onDragOpening={handleDragOpening}
             />
           </Canvas>
         </div>
@@ -719,11 +1033,15 @@ export default function FloorPlan3D() {
         {/* Actions sélection */}
         {selectedItem && (
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={handleRotate} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#ddd', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <RotateCw size={14} /> Rotation
-            </button>
             <button onClick={handleDelete} style={{ background: '#2a0a0a', border: '1px solid #5a1a1a', color: '#ff6b6b', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Trash2 size={14} /> Supprimer
+            </button>
+          </div>
+        )}
+        {selectedOpening && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={() => deleteOpening(selectedOpeningId)} style={{ background: '#2a0a0a', border: '1px solid #5a1a1a', color: '#ff6b6b', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Trash2 size={14} /> Supprimer ouverture
             </button>
           </div>
         )}
@@ -743,14 +1061,25 @@ export default function FloorPlan3D() {
               Cliquez dans la pièce pour placer <strong>{placing.name}</strong>
             </div>
           )}
+          {selectedItem && (
+            <RotationPanel
+              rotation={selectedItem.rotation}
+              onChange={handleSetRotation}
+              onRotateBy={handleRotateBy}
+              isMobile={false}
+            />
+          )}
           <Canvas shadows camera={{ position: [0, 5, 8], fov: 50 }} style={{ backgroundColor: '#D8D4CE' }}>
             <Scene
               roomW={roomW} roomD={roomD} wallH={wallH}
               placedItems={placedItems} selectedId={selectedId}
               onSelectItem={setSelectedId} onMoveItem={(id, pos) => setPlacedItems(prev => prev.map(i => i.id === id ? { ...i, position: pos } : i))}
               onPlaceItem={handlePlaceItem} placing={placing}
-              floorType={floorType} floorColor={floorColor} wallColor={wallColor}
+              floorType={floorType} floorPreset={floorPreset} floorColor={floorColor} wallColor={wallColor}
               openings={openings}
+              selectedOpeningId={selectedOpeningId}
+              onSelectOpening={setSelectedOpeningId}
+              onDragOpening={handleDragOpening}
             />
           </Canvas>
         </div>
