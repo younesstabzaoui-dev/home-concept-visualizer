@@ -379,8 +379,9 @@ function AngleSofaMesh({ handedness = 'right' }) {
         <meshStandardMaterial color={color} roughness={0.85} />
       </mesh>
       {/* Assise méridienne (sans dossier, comme une chaise longue) */}
-      <mesh castShadow receiveShadow position={[sign * 0.75, 0.225, 0.45]}>
-        <boxGeometry args={[1.50, 0.45, 0.87]} />
+      {/* Largeur 1.15m, collée au bord droit/gauche : centre X = 1.5 - 1.15/2 = 0.925 */}
+      <mesh castShadow receiveShadow position={[sign * 0.925, 0.225, 0.45]}>
+        <boxGeometry args={[1.15, 0.45, 0.87]} />
         <meshStandardMaterial color={color} roughness={0.85} />
       </mesh>
     </group>
