@@ -111,6 +111,31 @@ function DoorDecoration({ w = 0.9, h = 2.1, isSelected }) {
 }
 
 // ─── Radiateur décoratif ─────────────────────────────────────────────────────
+// ─── Télé écran plat accrochée au mur ────────────────────────────────────────
+function TVDecoration({ w = 1.22, h = 0.70, isSelected }) {
+  const frameColor = isSelected ? '#FFD700' : '#1a1a1a'
+  const bezelT = 0.015
+  return (
+    <group>
+      {/* Dos / support (fin contre le mur) */}
+      <mesh position={[0, 0, 0.015]}>
+        <boxGeometry args={[w, h, 0.03]} />
+        <meshStandardMaterial color="#0a0a0a" />
+      </mesh>
+      {/* Cadre / bezel */}
+      <mesh position={[0, 0, 0.035]}>
+        <boxGeometry args={[w, h, 0.01]} />
+        <meshStandardMaterial color={frameColor} roughness={0.3} metalness={0.5} />
+      </mesh>
+      {/* Écran (gris foncé brillant) */}
+      <mesh position={[0, 0, 0.041]}>
+        <planeGeometry args={[w - bezelT * 2, h - bezelT * 2]} />
+        <meshStandardMaterial color="#151820" roughness={0.05} metalness={0.2} />
+      </mesh>
+    </group>
+  )
+}
+
 function RadiatorDecoration({ w = 1.0, h = 0.6, depth = 0.08, isSelected }) {
   // Radiateur acier blanc avec ailettes verticales
   const finCount = Math.max(8, Math.floor(w / 0.07))
@@ -173,6 +198,7 @@ function OpeningWrapper({ op, position, rotation, dims, isSelected, onSelect, on
       {op.type === 'fenetre' && <WindowDecoration w={dims.w} h={dims.h} isBaie={false} isSelected={isSelected} />}
       {op.type === 'baie' && <WindowDecoration w={dims.w} h={dims.h} isBaie={true} isSelected={isSelected} />}
       {op.type === 'porte' && <DoorDecoration w={dims.w} h={dims.h} isSelected={isSelected} />}
+      {op.type === 'tv' && <TVDecoration w={dims.w} h={dims.h} isSelected={isSelected} />}
       {op.type.startsWith('radiateur') && <RadiatorDecoration w={dims.w} h={dims.h} isSelected={isSelected} />}
     </group>
   )
@@ -187,6 +213,7 @@ const OPENING_DIMS = {
   'radiateur-moyen':  { w: 1.0, h: 0.6, yCenter: 0.35, yBase: false },
   'radiateur-grand':  { w: 1.5, h: 0.6, yCenter: 0.35, yBase: false },
   'radiateur-vertical': { w: 0.5, h: 1.8, yCenter: 1.0, yBase: false },
+  tv:             { w: 1.22, h: 0.70, yCenter: 1.20, yBase: false },
 }
 
 function getOpeningDims(type) {
@@ -628,6 +655,7 @@ const OPENING_TYPES = [
   { type: 'radiateur-moyen', label: 'Radiateur M', desc: '100×60' },
   { type: 'radiateur-grand', label: 'Radiateur L', desc: '150×60' },
   { type: 'radiateur-vertical', label: 'Radiateur vert.', desc: '50×180' },
+  { type: 'tv', label: 'Télé écran plat', desc: '55" · 122×70' },
 ]
 const WALLS = [
   { id: 'back', label: 'Mur arrière' },
