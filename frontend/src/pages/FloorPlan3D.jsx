@@ -355,6 +355,101 @@ function resolveGlbUrl(product) {
   return product.glbUrl
 }
 
+// ─── Mesh primitif : canapé d'angle (bloc simple) ───────────────────────────
+// Encombrement : 3m × 1.77m, assise 45cm, dossier 75cm
+// handedness: 'right' = méridienne à droite (vue de face), 'left' = à gauche
+function AngleSofaMesh({ handedness = 'right' }) {
+  const color = '#9A8A78'
+  const sign = handedness === 'right' ? 1 : -1
+  // Partie principale : 3m × 0.90m, collée au fond (Z < 0)
+  // Recentrage : centre d'encombrement total (3 × 1.77) à l'origine
+  // Z total va de -0.885 (fond) à +0.885 (avant)
+  // Partie principale occupe Z de -0.885 à -0.885+0.90 = +0.015 → centre Z = -0.435
+  // Méridienne occupe Z de +0.015 à +0.015+0.87 = +0.885 → centre Z = +0.45
+  return (
+    <group>
+      {/* Assise partie principale */}
+      <mesh castShadow receiveShadow position={[0, 0.225, -0.435]}>
+        <boxGeometry args={[3, 0.45, 0.90]} />
+        <meshStandardMaterial color={color} roughness={0.85} />
+      </mesh>
+      {/* Dossier partie principale (hauteur totale 0.75 = dos haut) */}
+      <mesh castShadow receiveShadow position={[0, 0.60, -0.845]}>
+        <boxGeometry args={[3, 0.30, 0.08]} />
+        <meshStandardMaterial color={color} roughness={0.85} />
+      </mesh>
+      {/* Assise méridienne (sans dossier, comme une chaise longue) */}
+      <mesh castShadow receiveShadow position={[sign * 0.75, 0.225, 0.45]}>
+        <boxGeometry args={[1.50, 0.45, 0.87]} />
+        <meshStandardMaterial color={color} roughness={0.85} />
+      </mesh>
+    </group>
+  )
+}
+
+// ─── Furniture primitive (sans GLB) ──────────────────────────────────────────
+function PrimitiveFurniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitEnabled, hasCollision = false }) {
+  const halfW = (item.product.lengthCm || 100) / 200
+  const halfD = (item.product.depthCm || 60) / 200
+
+  const isDragging = useRef(false)
+  const { gl } = useThree()
+
+  const clampPosition = useCallback((px, pz) => {
+    const cos = Math.abs(Math.cos(item.rotation))
+    const sin = Math.abs(Math.sin(item.rotation))
+    const effectiveHalfW = halfW * cos + halfD * sin
+    const effectiveHalfD = halfW * sin + halfD * cos
+    let x = Math.max(-roomW / 2 + effectiveHalfW, Math.min(roomW / 2 - effectiveHalfW, px))
+    let z = Math.max(-roomD / 2 + effectiveHalfD, Math.min(roomD / 2 - effectiveHalfD, pz))
+    const snapDist = 0.3
+    if (Math.abs(x - (-roomW / 2 + effectiveHalfW)) < snapDist) x = -roomW / 2 + effectiveHalfW
+    if (Math.abs(x - (roomW / 2 - effectiveHalfW)) < snapDist) x = roomW / 2 - effectiveHalfW
+    if (Math.abs(z - (-roomD / 2 + effectiveHalfD)) < snapDist) z = -roomD / 2 + effectiveHalfD
+    if (Math.abs(z - (roomD / 2 - effectiveHalfD)) < snapDist) z = roomD / 2 - effectiveHalfD
+    return [x, 0, z]
+  }, [item.rotation, halfW, halfD, roomW, roomD])
+
+  const handedness = item.product.primitiveType === 'angle-sofa-left' ? 'left' : 'right'
+
+  return (
+    <group
+      position={item.position}
+      rotation={[0, item.rotation, 0]}
+      onPointerDown={e => {
+        e.stopPropagation()
+        isDragging.current = true
+        onSelect(item.id)
+        setOrbitEnabled(false)
+        gl.domElement.style.cursor = 'grabbing'
+      }}
+      onPointerUp={() => {
+        isDragging.current = false
+        setOrbitEnabled(true)
+        gl.domElement.style.cursor = 'auto'
+      }}
+      onPointerMove={e => {
+        if (!isDragging.current) return
+        e.stopPropagation()
+        const pos = clampPosition(e.point.x, e.point.z)
+        onMove(item.id, pos)
+      }}
+    >
+      {(isSelected || hasCollision) && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+          <ringGeometry args={[Math.max(halfW, halfD) * 0.95, Math.max(halfW, halfD) * 1.05, 48]} />
+          <meshBasicMaterial color={hasCollision ? '#FF4444' : '#FFD700'} transparent opacity={0.9} />
+        </mesh>
+      )}
+      {/* Collider invisible rectangulaire pour la sélection */}
+      <mesh visible={false} position={[0, 0.4, 0]}>
+        <boxGeometry args={[halfW * 2, 0.85, halfD * 2]} />
+      </mesh>
+      <AngleSofaMesh handedness={handedness} />
+    </group>
+  )
+}
+
 function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitEnabled, hasCollision = false }) {
   const glbSrc = resolveGlbUrl(item.product)
   const { scene } = useGLTF(glbSrc)
@@ -498,14 +593,17 @@ function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onM
       />
       <FloorPlane onFloorClick={handleFloorClick} roomW={roomW} roomD={roomD} />
       <Suspense fallback={null}>
-        {placedItems.map(item => (
-          <Furniture key={item.id} item={item} isSelected={item.id === selectedId}
-            onSelect={onSelectItem} onMove={onMoveItem}
-            roomW={roomW} roomD={roomD}
-            setOrbitEnabled={setOrbitEnabled}
-            hasCollision={collidingIds?.has(item.id)}
-          />
-        ))}
+        {placedItems.map(item => {
+          const commonProps = {
+            item, isSelected: item.id === selectedId,
+            onSelect: onSelectItem, onMove: onMoveItem,
+            roomW, roomD, setOrbitEnabled,
+            hasCollision: collidingIds?.has(item.id),
+          }
+          return item.product.isPrimitive
+            ? <PrimitiveFurniture key={item.id} {...commonProps} />
+            : <Furniture key={item.id} {...commonProps} />
+        })}
       </Suspense>
       <OrbitControls
         enabled={orbitEnabled}
@@ -593,6 +691,39 @@ const btnRound = {
   padding: '4px 8px', fontSize: '11px', cursor: 'pointer',
   fontWeight: '500',
 }
+
+// ─── Pseudo-produits : blocs primitifs disponibles sans GLB ─────────────────
+const ANGLE_SOFA_SVG_RIGHT = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect x="4" y="12" width="40" height="14" rx="2" fill="#9A8A78"/><rect x="30" y="24" width="14" height="16" rx="2" fill="#9A8A78"/></svg>`
+)}`
+const ANGLE_SOFA_SVG_LEFT = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect x="4" y="12" width="40" height="14" rx="2" fill="#9A8A78"/><rect x="4" y="24" width="14" height="16" rx="2" fill="#9A8A78"/></svg>`
+)}`
+
+const PSEUDO_PRODUCTS = [
+  {
+    id: 'pseudo-angle-sofa-right',
+    name: "Canapé d'angle 3m (angle droit)",
+    category: 'canape',
+    lengthCm: 300,
+    depthCm: 177,
+    heightCm: 75,
+    isPrimitive: true,
+    primitiveType: 'angle-sofa-right',
+    image: ANGLE_SOFA_SVG_RIGHT,
+  },
+  {
+    id: 'pseudo-angle-sofa-left',
+    name: "Canapé d'angle 3m (angle gauche)",
+    category: 'canape',
+    lengthCm: 300,
+    depthCm: 177,
+    heightCm: 75,
+    isPrimitive: true,
+    primitiveType: 'angle-sofa-left',
+    image: ANGLE_SOFA_SVG_LEFT,
+  },
+]
 
 const STORAGE_KEY = 'home-concept-3d-composition-v1'
 
@@ -686,7 +817,7 @@ export default function FloorPlan3D() {
     fetch(API_BASE + '/api/products')
       .then(r => r.json())
       .then(data => {
-        const validProducts = data.filter(p => p.glbUrl)
+        const validProducts = [...PSEUDO_PRODUCTS, ...data.filter(p => p.glbUrl)]
         setProducts(validProducts)
         setLoadingProducts(false)
         // Restaurer les meubles sauvegardés en récupérant les produits actuels
@@ -706,7 +837,11 @@ export default function FloorPlan3D() {
           setPlacedItems(restored)
         }
       })
-      .catch(() => setLoadingProducts(false))
+      .catch(() => {
+        // Même en cas d'échec du fetch, on garde les pseudo-produits dispo
+        setProducts(PSEUDO_PRODUCTS)
+        setLoadingProducts(false)
+      })
   }, [])
 
   // Sauvegarde automatique dans localStorage à chaque changement
