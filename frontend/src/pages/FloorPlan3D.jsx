@@ -1,10 +1,34 @@
 import React, { useState, useEffect, useRef, Suspense, useCallback, useMemo } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, useGLTF, Environment, Grid, useTexture } from '@react-three/drei'
-import { Loader2, Plus, Trash2, RotateCw, ArrowLeft, Sofa, Settings, ChevronUp, ChevronDown, X, Thermometer } from 'lucide-react'
+import { Loader2, Plus, Trash2, RotateCw, ArrowLeft, Sofa, Settings, ChevronUp, ChevronDown, X, Thermometer, RotateCcw, Eye, Camera, Share2, FileText, Mail, Search, ExternalLink, Layers } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import API_BASE from '../config'
+
+// Catégories de meubles
+const CATEGORY_LABELS = {
+  canape: 'Canapés',
+  table_basse: 'Tables basses',
+  table_repas: 'Tables à manger',
+  chaise: 'Chaises',
+  lit: 'Lits',
+}
+
+// Snap d'angle : retourne l'angle le plus proche d'un multiple de 15° dans une zone de tolérance
+function snapAngle(radians, snapDeg = 15, toleranceDeg = 4) {
+  const deg = (radians * 180 / Math.PI) % 360
+  const nearest = Math.round(deg / snapDeg) * snapDeg
+  if (Math.abs(deg - nearest) < toleranceDeg) {
+    return nearest * Math.PI / 180
+  }
+  return radians
+}
+
+// Test de collision AABB entre 2 boxes en 2D (sol)
+function boxesCollide(a, b) {
+  return Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.z - b.z) < (a.d + b.d) / 2
+}
 
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < breakpoint)
@@ -170,6 +194,29 @@ function getOpeningDims(type) {
   return { ...OPENING_DIMS[type], type }
 }
 
+// ─── Plinthes en bas des murs ────────────────────────────────────────────────
+function Skirtings({ width, depth }) {
+  const h = 0.08
+  const t = 0.015
+  const color = '#FFFFFF'
+  return (
+    <group position={[0, h / 2 + 0.001, 0]}>
+      <mesh position={[0, 0, -depth / 2 + t / 2 + 0.025]}>
+        <boxGeometry args={[width, h, t]} />
+        <meshStandardMaterial color={color} roughness={0.6} />
+      </mesh>
+      <mesh position={[-width / 2 + t / 2 + 0.025, 0, 0]}>
+        <boxGeometry args={[t, h, depth]} />
+        <meshStandardMaterial color={color} roughness={0.6} />
+      </mesh>
+      <mesh position={[width / 2 - t / 2 - 0.025, 0, 0]}>
+        <boxGeometry args={[t, h, depth]} />
+        <meshStandardMaterial color={color} roughness={0.6} />
+      </mesh>
+    </group>
+  )
+}
+
 // ─── Sol avec texture parquet (Polyhaven 2K) ─────────────────────────────────
 function ParquetFloor({ width, depth, preset, color }) {
   const textures = useTexture({
@@ -209,7 +256,7 @@ function ParquetFloor({ width, depth, preset, color }) {
 }
 
 // ─── Pièce 3D ────────────────────────────────────────────────────────────────
-function Room({ width, depth, wallH, floorType, floorPreset, floorColor, wallColor, openings, selectedOpeningId, onSelectOpening, onDragOpening, setOrbitEnabled }) {
+function Room({ width, depth, wallH, floorType, floorPreset, floorColor, wallColor, openings, selectedOpeningId, onSelectOpening, onDragOpening, setOrbitEnabled, showSkirtings = true }) {
   const wallT = 0.05
 
   return (
@@ -253,6 +300,9 @@ function Room({ width, depth, wallH, floorType, floorPreset, floorColor, wallCol
         <boxGeometry args={[wallT, wallH, depth]} />
         <meshStandardMaterial color={wallColor} roughness={0.9} />
       </mesh>
+
+      {/* Plinthes */}
+      {showSkirtings && <Skirtings width={width} depth={depth} />}
 
       {/* Ouvertures */}
       {openings.map(op => {
@@ -305,7 +355,7 @@ function resolveGlbUrl(product) {
   return product.glbUrl
 }
 
-function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitEnabled }) {
+function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitEnabled, hasCollision = false }) {
   const glbSrc = resolveGlbUrl(item.product)
   const { scene } = useGLTF(glbSrc)
   const cloned = React.useMemo(() => {
@@ -322,7 +372,6 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitE
     box.getSize(size)
     const targetW = (item.product.lengthCm || 100) / 100
     const s = targetW / (size.x || 1)
-    // Dimensions réelles du meuble (en mètres)
     const realW = (item.product.lengthCm || 100) / 100
     const realD = (item.product.depthCm || 60) / 100
     return { scale: s, yOffset: -box.min.y * s, halfW: realW / 2, halfD: realD / 2 }
@@ -331,14 +380,20 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitE
   const isDragging = useRef(false)
   const { gl } = useThree()
 
-  // Calcule la position clampée en tenant compte de la rotation et la taille du meuble
+  // Position clampée + snap au mur (à 30cm)
   const clampPosition = useCallback((px, pz) => {
     const cos = Math.abs(Math.cos(item.rotation))
     const sin = Math.abs(Math.sin(item.rotation))
     const effectiveHalfW = halfW * cos + halfD * sin
     const effectiveHalfD = halfW * sin + halfD * cos
-    const x = Math.max(-roomW / 2 + effectiveHalfW, Math.min(roomW / 2 - effectiveHalfW, px))
-    const z = Math.max(-roomD / 2 + effectiveHalfD, Math.min(roomD / 2 - effectiveHalfD, pz))
+    let x = Math.max(-roomW / 2 + effectiveHalfW, Math.min(roomW / 2 - effectiveHalfW, px))
+    let z = Math.max(-roomD / 2 + effectiveHalfD, Math.min(roomD / 2 - effectiveHalfD, pz))
+    // Snap au mur (zone de 30cm)
+    const snapDist = 0.3
+    if (Math.abs(x - (-roomW / 2 + effectiveHalfW)) < snapDist) x = -roomW / 2 + effectiveHalfW
+    if (Math.abs(x - (roomW / 2 - effectiveHalfW)) < snapDist) x = roomW / 2 - effectiveHalfW
+    if (Math.abs(z - (-roomD / 2 + effectiveHalfD)) < snapDist) z = -roomD / 2 + effectiveHalfD
+    if (Math.abs(z - (roomD / 2 - effectiveHalfD)) < snapDist) z = roomD / 2 - effectiveHalfD
     return [x, 0, z]
   }, [item.rotation, halfW, halfD, roomW, roomD])
 
@@ -365,13 +420,13 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitE
         onMove(item.id, pos)
       }}
     >
-      {isSelected && (
+      {(isSelected || hasCollision) && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
           <ringGeometry args={[Math.max(halfW, halfD) * 0.95, Math.max(halfW, halfD) * 1.05, 32]} />
-          <meshBasicMaterial color="#FFD700" transparent opacity={0.9} />
+          <meshBasicMaterial color={hasCollision ? '#FF4444' : '#FFD700'} transparent opacity={0.9} />
         </mesh>
       )}
-      {/* Collider invisible plus grand pour faciliter la sélection (~1.2m de haut) */}
+      {/* Collider invisible plus grand pour faciliter la sélection */}
       <mesh visible={false} position={[0, 0.6, 0]}>
         <boxGeometry args={[halfW * 2 + 0.1, 1.2, halfD * 2 + 0.1]} />
       </mesh>
@@ -390,8 +445,23 @@ function FloorPlane({ onFloorClick, roomW, roomD }) {
   )
 }
 
+// Composant qui gère la caméra (top view ou perspective)
+function CameraController({ topView, roomW, roomD }) {
+  const { camera } = useThree()
+  useEffect(() => {
+    if (topView) {
+      camera.position.set(0, Math.max(roomW, roomD) * 1.5, 0.01)
+      camera.lookAt(0, 0, 0)
+    } else {
+      camera.position.set(0, 5, 8)
+      camera.lookAt(0, 0, 0)
+    }
+  }, [topView, camera, roomW, roomD])
+  return null
+}
+
 // ─── Scène complète ──────────────────────────────────────────────────────────
-function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onMoveItem, onPlaceItem, placing, floorType, floorPreset, floorColor, wallColor, openings, selectedOpeningId, onSelectOpening, onDragOpening }) {
+function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onMoveItem, onPlaceItem, placing, floorType, floorPreset, floorColor, wallColor, openings, selectedOpeningId, onSelectOpening, onDragOpening, topView, collidingIds }) {
   const [orbitEnabled, setOrbitEnabled] = useState(true)
 
   const handleFloorClick = (e) => {
@@ -415,6 +485,7 @@ function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onM
         shadow-camera-top={10} shadow-camera-bottom={-10}
       />
       <Environment preset="apartment" />
+      <CameraController topView={topView} roomW={roomW} roomD={roomD} />
       <Room
         width={roomW} depth={roomD} wallH={wallH}
         floorType={floorType} floorPreset={floorPreset} floorColor={floorColor} wallColor={wallColor}
@@ -423,6 +494,7 @@ function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onM
         onSelectOpening={onSelectOpening}
         onDragOpening={onDragOpening}
         setOrbitEnabled={setOrbitEnabled}
+        showSkirtings={!topView}
       />
       <FloorPlane onFloorClick={handleFloorClick} roomW={roomW} roomD={roomD} />
       <Suspense fallback={null}>
@@ -431,13 +503,15 @@ function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onM
             onSelect={onSelectItem} onMove={onMoveItem}
             roomW={roomW} roomD={roomD}
             setOrbitEnabled={setOrbitEnabled}
+            hasCollision={collidingIds?.has(item.id)}
           />
         ))}
       </Suspense>
       <OrbitControls
         enabled={orbitEnabled}
         enablePan={false}
-        maxPolarAngle={Math.PI / 2 - 0.05}
+        maxPolarAngle={topView ? 0.01 : Math.PI / 2 - 0.05}
+        minPolarAngle={topView ? 0 : 0}
         minDistance={2}
         maxDistance={Math.max(roomW, roomD) * 2.5}
         touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
@@ -563,8 +637,50 @@ export default function FloorPlan3D() {
   const [openings, setOpenings] = useState(saved?.openings ?? [])
   const [openingWall, setOpeningWall] = useState('back')
 
+  // Vue / UX
+  const [topView, setTopView] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeCategory, setActiveCategory] = useState('all')
+  const [shareToast, setShareToast] = useState(null)
+  const canvasRef = useRef(null)
+
   // Mémorise les meubles sauvegardés (sans le glbUrl/scene) pour les restaurer après chargement des produits
   const savedItemsRef = useRef(saved?.placedItems ?? [])
+
+  // Détection collisions entre meubles
+  const collidingIds = useMemo(() => {
+    const colliding = new Set()
+    const boxes = placedItems.map(item => {
+      const w = (item.product.lengthCm || 100) / 100
+      const d = (item.product.depthCm || 60) / 100
+      const cos = Math.abs(Math.cos(item.rotation))
+      const sin = Math.abs(Math.sin(item.rotation))
+      return {
+        id: item.id,
+        x: item.position[0],
+        z: item.position[2],
+        w: w * cos + d * sin,
+        d: w * sin + d * cos,
+      }
+    })
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        if (boxesCollide(boxes[i], boxes[j])) {
+          colliding.add(boxes[i].id)
+          colliding.add(boxes[j].id)
+        }
+      }
+    }
+    return colliding
+  }, [placedItems])
+
+  // Surface au sol
+  const surfaceM2 = (roomW * roomD).toFixed(1)
+
+  // Prix total des meubles placés
+  const totalPrice = useMemo(() => {
+    return placedItems.reduce((sum, i) => sum + (Number(i.product.price) || 0), 0)
+  }, [placedItems])
 
   useEffect(() => {
     fetch(API_BASE + '/api/products')
@@ -623,11 +739,11 @@ export default function FloorPlan3D() {
     if (isMobile) setDrawerOpen(false)
   }
 
-  // Rotation : valeur en degrés (0-360)
+  // Rotation : valeur en degrés (0-360) avec snap à 15°
   const handleRotateBy = (deltaDegrees) => {
     if (!selectedId) return
     setPlacedItems(prev => prev.map(i => i.id === selectedId
-      ? { ...i, rotation: i.rotation + (deltaDegrees * Math.PI / 180) }
+      ? { ...i, rotation: snapAngle(i.rotation + (deltaDegrees * Math.PI / 180)) }
       : i
     ))
   }
@@ -635,7 +751,7 @@ export default function FloorPlan3D() {
   const handleSetRotation = (degrees) => {
     if (!selectedId) return
     setPlacedItems(prev => prev.map(i => i.id === selectedId
-      ? { ...i, rotation: degrees * Math.PI / 180 }
+      ? { ...i, rotation: snapAngle(degrees * Math.PI / 180) }
       : i
     ))
   }
@@ -710,13 +826,57 @@ export default function FloorPlan3D() {
     borderRadius: '6px',
   })
 
+  // Produits filtrés par recherche et catégorie
+  const filteredProducts = useMemo(() => {
+    let list = products
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter(p => p.name?.toLowerCase().includes(q))
+    } else if (activeCategory !== 'all') {
+      list = list.filter(p => p.category === activeCategory)
+    }
+    return list
+  }, [products, searchQuery, activeCategory])
+
   // ─── Contenu partagé sidebar/drawer ───────────────────────────────────────
   const sidebarContent = (
     <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
       {sidebarTab === 'meubles' && (
         <>
-          <p style={{ color: '#666', fontSize: '11px' }}>{isMobile ? 'Touchez pour placer' : 'Cliquez pour placer dans la pièce'}</p>
+          {/* Barre de recherche */}
+          <div style={{ position: 'relative' }}>
+            <Search size={13} color="#555" style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+            <input
+              type="text"
+              placeholder="Rechercher…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%', padding: '7px 10px 7px 28px',
+                backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '7px',
+                color: '#ddd', fontSize: '12px', boxSizing: 'border-box',
+              }}
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '7px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: '2px', display: 'flex' }}>
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          {/* Filtre catégories */}
+          {!searchQuery && (
+            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+              {[['all', 'Tous'], ...Object.entries(CATEGORY_LABELS)].map(([key, label]) => (
+                <button key={key} onClick={() => setActiveCategory(key)} style={{
+                  padding: '3px 9px', borderRadius: '20px', fontSize: '11px', cursor: 'pointer',
+                  border: `1px solid ${activeCategory === key ? '#aaa' : '#333'}`,
+                  backgroundColor: activeCategory === key ? '#2a2a2a' : '#1a1a1a',
+                  color: activeCategory === key ? '#fff' : '#666',
+                }}>{label}</button>
+              ))}
+            </div>
+          )}
           {loadingProducts ? (
             <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '32px' }}>
               <Loader2 size={20} color="#666" className="spin" />
@@ -728,7 +888,7 @@ export default function FloorPlan3D() {
           ) : isMobile ? (
             /* Mobile: grille horizontale scrollable */
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-              {products.map(product => {
+              {filteredProducts.map(product => {
                 const isPlacing = placing?.id === product.id
                 return (
                   <button key={product.id}
@@ -748,7 +908,7 @@ export default function FloorPlan3D() {
               })}
             </div>
           ) : (
-            products.map(product => {
+            filteredProducts.map(product => {
               const isPlacing = placing?.id === product.id
               return (
                 <button key={product.id}
@@ -954,13 +1114,22 @@ export default function FloorPlan3D() {
             <ArrowLeft size={14} />
           </button>
           <span style={{ color: '#fff', fontFamily: 'serif', fontSize: '16px', fontWeight: '600' }}>Plan 3D</span>
-          <button onClick={() => setDrawerOpen(!drawerOpen)} style={{
-            background: drawerOpen ? '#333' : 'none', border: '1px solid #333', color: '#aaa',
-            padding: '6px 10px', borderRadius: '6px', cursor: 'pointer',
-            fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
-          }}>
-            <Sofa size={16} />
-          </button>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button onClick={() => setTopView(v => !v)} title={topView ? 'Vue 3D' : 'Vue de dessus'} style={{
+              background: topView ? '#2a3a4a' : 'none', border: `1px solid ${topView ? '#4a8aa8' : '#333'}`, color: topView ? '#7ac8e8' : '#aaa',
+              padding: '6px 10px', borderRadius: '6px', cursor: 'pointer',
+              fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
+            }}>
+              <Layers size={15} />
+            </button>
+            <button onClick={() => setDrawerOpen(!drawerOpen)} style={{
+              background: drawerOpen ? '#333' : 'none', border: '1px solid #333', color: '#aaa',
+              padding: '6px 10px', borderRadius: '6px', cursor: 'pointer',
+              fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
+            }}>
+              <Sofa size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Canvas 3D plein écran */}
@@ -1022,6 +1191,8 @@ export default function FloorPlan3D() {
               selectedOpeningId={selectedOpeningId}
               onSelectOpening={setSelectedOpeningId}
               onDragOpening={handleDragOpening}
+              topView={topView}
+              collidingIds={collidingIds}
             />
           </Canvas>
         </div>
@@ -1076,7 +1247,7 @@ export default function FloorPlan3D() {
           <span style={{ color: '#fff', fontFamily: 'serif', fontSize: '18px', fontWeight: '600' }}>Plan 3D</span>
         </div>
 
-        {/* Dimensions */}
+        {/* Dimensions + surface */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ color: '#888', fontSize: '13px' }}>Pièce :</span>
           {[['L', roomWInput, setRoomWInput, setRoomW, 2, 15], ['P', roomDInput, setRoomDInput, setRoomD, 2, 15], ['H', wallHInput, setWallHInput, setWallH, 2, 4]].map(([label, inputVal, setInput, setNum, min, max]) => (
@@ -1104,23 +1275,53 @@ export default function FloorPlan3D() {
               <span style={{ color: '#666' }}>m</span>
             </label>
           ))}
+          <span style={{ color: '#555', fontSize: '12px', marginLeft: '4px' }}>= {surfaceM2} m²</span>
         </div>
 
         {/* Actions sélection */}
         {selectedItem && (
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: '#888', fontSize: '12px' }}>
+              {selectedItem.product.name} · {selectedItem.product.lengthCm}×{selectedItem.product.depthCm} cm
+              {selectedItem.product.price ? <span style={{ color: '#aaa', marginLeft: '6px' }}>{Number(selectedItem.product.price).toLocaleString('fr-FR')} €</span> : null}
+            </span>
+            {selectedItem.product.link && (
+              <a href={selectedItem.product.link} target="_blank" rel="noreferrer" style={{ background: 'none', border: '1px solid #333', color: '#7ac8e8', padding: '5px 10px', borderRadius: '6px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}>
+                <ExternalLink size={12} /> Fiche
+              </a>
+            )}
             <button onClick={handleDelete} style={{ background: '#2a0a0a', border: '1px solid #5a1a1a', color: '#ff6b6b', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Trash2 size={14} /> Supprimer
             </button>
           </div>
         )}
-        {selectedOpening && (
+        {selectedOpening && !selectedItem && (
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={() => deleteOpening(selectedOpeningId)} style={{ background: '#2a0a0a', border: '1px solid #5a1a1a', color: '#ff6b6b', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Trash2 size={14} /> Supprimer ouverture
             </button>
           </div>
         )}
+
+        {/* TopView + Reset */}
+        <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+          <button onClick={() => setTopView(v => !v)} title={topView ? 'Vue 3D' : 'Vue de dessus'} style={{
+            background: topView ? '#1a2a3a' : 'none', border: `1px solid ${topView ? '#4a8aa8' : '#333'}`, color: topView ? '#7ac8e8' : '#666',
+            padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
+            display: 'flex', alignItems: 'center', gap: '5px',
+          }}>
+            <Layers size={14} /> {topView ? '3D' : '2D top'}
+          </button>
+          {placedItems.length > 0 && (
+            <button onClick={() => { setPlacedItems([]); setSelectedId(null) }} style={{
+              background: 'none', border: '1px solid #333', color: '#888',
+              padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
+              display: 'flex', alignItems: 'center', gap: '5px',
+            }}>
+              <X size={13} /> Vider
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Corps */}
@@ -1156,6 +1357,8 @@ export default function FloorPlan3D() {
               selectedOpeningId={selectedOpeningId}
               onSelectOpening={setSelectedOpeningId}
               onDragOpening={handleDragOpening}
+              topView={topView}
+              collidingIds={collidingIds}
             />
           </Canvas>
         </div>
@@ -1169,7 +1372,19 @@ export default function FloorPlan3D() {
           {sidebarContent}
           {placedItems.length > 0 && (
             <div style={{ padding: '10px 12px', borderTop: '1px solid #222', flexShrink: 0 }}>
-              <p style={{ color: '#555', fontSize: '11px', textAlign: 'center' }}>{placedItems.length} meuble(s) placé(s)</p>
+              <p style={{ color: '#555', fontSize: '11px', marginBottom: '4px' }}>{placedItems.length} meuble(s) · {surfaceM2} m²</p>
+              {totalPrice > 0 && (
+                <p style={{ color: '#aaa', fontSize: '13px', fontWeight: '600' }}>
+                  Total : {totalPrice.toLocaleString('fr-FR')} €
+                </p>
+              )}
+              <button onClick={() => { setPlacedItems([]); setSelectedId(null) }} style={{
+                marginTop: '6px', width: '100%', padding: '6px', borderRadius: '6px',
+                background: 'none', border: '1px solid #333', color: '#666',
+                fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+              }}>
+                <X size={11} /> Vider la composition
+              </button>
             </div>
           )}
         </div>
