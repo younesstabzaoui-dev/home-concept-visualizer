@@ -428,13 +428,20 @@ function PrimitiveFurniture({ item, isSelected, onSelect, onMove, roomW, roomD, 
     const sin = Math.abs(Math.sin(item.rotation))
     const effectiveHalfW = halfW * cos + halfD * sin
     const effectiveHalfD = halfW * sin + halfD * cos
-    let x = Math.max(-roomW / 2 + effectiveHalfW, Math.min(roomW / 2 - effectiveHalfW, px))
-    let z = Math.max(-roomD / 2 + effectiveHalfD, Math.min(roomD / 2 - effectiveHalfD, pz))
+    // wallHalfT = demi-épaisseur des murs (wallT=0.05 → 0.025) pour éviter
+    // que le meuble traverse la face intérieure du mur.
+    const wallHalfT = 0.025
+    const minX = -roomW / 2 + wallHalfT + effectiveHalfW
+    const maxX = roomW / 2 - wallHalfT - effectiveHalfW
+    const minZ = -roomD / 2 + wallHalfT + effectiveHalfD
+    const maxZ = roomD / 2 - effectiveHalfD // pas de mur avant
+    let x = Math.max(minX, Math.min(maxX, px))
+    let z = Math.max(minZ, Math.min(maxZ, pz))
     const snapDist = 0.3
-    if (Math.abs(x - (-roomW / 2 + effectiveHalfW)) < snapDist) x = -roomW / 2 + effectiveHalfW
-    if (Math.abs(x - (roomW / 2 - effectiveHalfW)) < snapDist) x = roomW / 2 - effectiveHalfW
-    if (Math.abs(z - (-roomD / 2 + effectiveHalfD)) < snapDist) z = -roomD / 2 + effectiveHalfD
-    if (Math.abs(z - (roomD / 2 - effectiveHalfD)) < snapDist) z = roomD / 2 - effectiveHalfD
+    if (Math.abs(x - minX) < snapDist) x = minX
+    if (Math.abs(x - maxX) < snapDist) x = maxX
+    if (Math.abs(z - minZ) < snapDist) z = minZ
+    if (Math.abs(z - maxZ) < snapDist) z = maxZ
     return [x, 0, z]
   }, [item.rotation, halfW, halfD, roomW, roomD])
 
@@ -444,6 +451,7 @@ function PrimitiveFurniture({ item, isSelected, onSelect, onMove, roomW, roomD, 
     <group
       position={item.position}
       rotation={[0, item.rotation, 0]}
+      onClick={e => e.stopPropagation()}
       onPointerDown={e => {
         e.stopPropagation()
         e.target.setPointerCapture?.(e.pointerId)
@@ -453,6 +461,7 @@ function PrimitiveFurniture({ item, isSelected, onSelect, onMove, roomW, roomD, 
         gl.domElement.style.cursor = 'grabbing'
       }}
       onPointerUp={e => {
+        e.stopPropagation()
         e.target.releasePointerCapture?.(e.pointerId)
         isDragging.current = false
         setOrbitEnabled(true)
@@ -511,20 +520,24 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitE
   const isDragging = useRef(false)
   const { gl } = useThree()
 
-  // Position clampée + snap au mur (à 30cm)
+  // Position clampée + snap au mur (à 30cm), en tenant compte de l'épaisseur des murs
   const clampPosition = useCallback((px, pz) => {
     const cos = Math.abs(Math.cos(item.rotation))
     const sin = Math.abs(Math.sin(item.rotation))
     const effectiveHalfW = halfW * cos + halfD * sin
     const effectiveHalfD = halfW * sin + halfD * cos
-    let x = Math.max(-roomW / 2 + effectiveHalfW, Math.min(roomW / 2 - effectiveHalfW, px))
-    let z = Math.max(-roomD / 2 + effectiveHalfD, Math.min(roomD / 2 - effectiveHalfD, pz))
-    // Snap au mur (zone de 30cm)
+    const wallHalfT = 0.025
+    const minX = -roomW / 2 + wallHalfT + effectiveHalfW
+    const maxX = roomW / 2 - wallHalfT - effectiveHalfW
+    const minZ = -roomD / 2 + wallHalfT + effectiveHalfD
+    const maxZ = roomD / 2 - effectiveHalfD // pas de mur avant
+    let x = Math.max(minX, Math.min(maxX, px))
+    let z = Math.max(minZ, Math.min(maxZ, pz))
     const snapDist = 0.3
-    if (Math.abs(x - (-roomW / 2 + effectiveHalfW)) < snapDist) x = -roomW / 2 + effectiveHalfW
-    if (Math.abs(x - (roomW / 2 - effectiveHalfW)) < snapDist) x = roomW / 2 - effectiveHalfW
-    if (Math.abs(z - (-roomD / 2 + effectiveHalfD)) < snapDist) z = -roomD / 2 + effectiveHalfD
-    if (Math.abs(z - (roomD / 2 - effectiveHalfD)) < snapDist) z = roomD / 2 - effectiveHalfD
+    if (Math.abs(x - minX) < snapDist) x = minX
+    if (Math.abs(x - maxX) < snapDist) x = maxX
+    if (Math.abs(z - minZ) < snapDist) z = minZ
+    if (Math.abs(z - maxZ) < snapDist) z = maxZ
     return [x, 0, z]
   }, [item.rotation, halfW, halfD, roomW, roomD])
 
@@ -532,6 +545,7 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitE
     <group
       position={item.position}
       rotation={[0, item.rotation, 0]}
+      onClick={e => e.stopPropagation()}
       onPointerDown={e => {
         e.stopPropagation()
         e.target.setPointerCapture?.(e.pointerId)
@@ -541,6 +555,7 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitE
         gl.domElement.style.cursor = 'grabbing'
       }}
       onPointerUp={e => {
+        e.stopPropagation()
         e.target.releasePointerCapture?.(e.pointerId)
         isDragging.current = false
         setOrbitEnabled(true)
