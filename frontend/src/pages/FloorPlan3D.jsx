@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense, useCallback, useMemo } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
-import { OrbitControls, useGLTF, Environment, Grid, useTexture } from '@react-three/drei'
-import { Loader2, Plus, Trash2, RotateCw, ArrowLeft, Sofa, Settings, ChevronUp, ChevronDown, X, Thermometer, RotateCcw, Eye, Camera, Share2, FileText, Mail, Search, ExternalLink, Layers } from 'lucide-react'
+import { OrbitControls, useGLTF, Environment, Grid, useTexture, Html } from '@react-three/drei'
+import { Loader2, Plus, Trash2, RotateCw, ArrowLeft, Sofa, Settings, ChevronUp, ChevronDown, X, Thermometer, RotateCcw, Eye, Camera, Share2, FileText, Mail, Search, ExternalLink, Layers, Download, Folder, FolderPlus, Edit2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import API_BASE from '../config'
@@ -615,6 +615,41 @@ function CameraController({ topView, roomW, roomD }) {
   return null
 }
 
+// Cotes de la pièce affichées en vue top (HTML overlay in-scene)
+function DimensionLabels({ roomW, roomD, wallH }) {
+  const labelStyle = {
+    backgroundColor: 'rgba(17,17,17,0.85)',
+    color: '#FFD700',
+    padding: '4px 10px',
+    borderRadius: '6px',
+    fontSize: '13px',
+    fontWeight: '600',
+    fontFamily: 'system-ui, sans-serif',
+    whiteSpace: 'nowrap',
+    border: '1px solid rgba(255,215,0,0.3)',
+    pointerEvents: 'none',
+    transform: 'translate(-50%, -50%)',
+  }
+  return (
+    <group>
+      {/* Largeur (L) — en haut de la pièce côté fond */}
+      <Html position={[0, 0.02, -roomD / 2 - 0.35]} center distanceFactor={10}>
+        <div style={labelStyle}>{roomW.toFixed(2)} m</div>
+      </Html>
+      {/* Profondeur (P) — à gauche */}
+      <Html position={[-roomW / 2 - 0.35, 0.02, 0]} center distanceFactor={10}>
+        <div style={labelStyle}>{roomD.toFixed(2)} m</div>
+      </Html>
+      {/* Surface totale — au centre */}
+      <Html position={[0, 0.02, roomD / 2 + 0.35]} center distanceFactor={10}>
+        <div style={{ ...labelStyle, backgroundColor: 'rgba(17,17,17,0.7)', color: '#aaa', fontSize: '11px' }}>
+          {(roomW * roomD).toFixed(1)} m² · H {wallH.toFixed(2)}m
+        </div>
+      </Html>
+    </group>
+  )
+}
+
 // ─── Scène complète ──────────────────────────────────────────────────────────
 function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onMoveItem, onPlaceItem, placing, floorType, floorPreset, floorColor, wallColor, openings, selectedOpeningId, onSelectOpening, onDragOpening, topView, collidingIds }) {
   const [orbitEnabled, setOrbitEnabled] = useState(true)
@@ -653,6 +688,7 @@ function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onM
         showSkirtings={!topView}
       />
       <FloorPlane onFloorClick={handleFloorClick} roomW={roomW} roomD={roomD} />
+      {topView && <DimensionLabels roomW={roomW} roomD={roomD} wallH={wallH} />}
       <Suspense fallback={null}>
         {placedItems.map(item => {
           const commonProps = {
@@ -787,16 +823,58 @@ const PSEUDO_PRODUCTS = [
   },
 ]
 
-const STORAGE_KEY = 'home-concept-3d-composition-v1'
+// ─── Stockage multi-projets ─────────────────────────────────────────────────
+const LEGACY_KEY = 'home-concept-3d-composition-v1'
+const PROJECTS_KEY = 'home-concept-3d-projects-v1'
+const ACTIVE_KEY = 'home-concept-3d-active-v1'
 
-function loadSavedComposition() {
+function loadProjects() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
+    const raw = localStorage.getItem(PROJECTS_KEY)
+    if (raw) {
+      const list = JSON.parse(raw)
+      if (Array.isArray(list) && list.length > 0) return list
+    }
+    // Migration : si ancien format présent, on crée un projet par défaut
+    const legacy = localStorage.getItem(LEGACY_KEY)
+    if (legacy) {
+      const composition = JSON.parse(legacy)
+      const migrated = [{
+        id: 'proj-default',
+        name: 'Projet par défaut',
+        clientName: '',
+        createdAt: Date.now(),
+        composition,
+      }]
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(migrated))
+      localStorage.setItem(ACTIVE_KEY, 'proj-default')
+      return migrated
+    }
+  } catch {}
+  // Aucun projet : en créer un vide
+  const empty = [{
+    id: 'proj-' + Date.now(),
+    name: 'Nouveau projet',
+    clientName: '',
+    createdAt: Date.now(),
+    composition: null,
+  }]
+  return empty
+}
+
+function loadActiveProjectId(projects) {
+  try {
+    const id = localStorage.getItem(ACTIVE_KEY)
+    if (id && projects.find(p => p.id === id)) return id
+  } catch {}
+  return projects[0]?.id
+}
+
+function saveProjects(projects) {
+  try { localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects)) } catch {}
+}
+function saveActiveProjectId(id) {
+  try { localStorage.setItem(ACTIVE_KEY, id) } catch {}
 }
 
 export default function FloorPlan3D() {
@@ -806,8 +884,15 @@ export default function FloorPlan3D() {
   const [products, setProducts] = useState([])
   const [loadingProducts, setLoadingProducts] = useState(true)
 
-  // Charger l'état sauvegardé au démarrage
-  const saved = useMemo(() => loadSavedComposition(), [])
+  // Charger projets + projet actif au démarrage
+  const [projects, setProjects] = useState(() => loadProjects())
+  const [activeProjectId, setActiveProjectId] = useState(() => {
+    const list = loadProjects()
+    return loadActiveProjectId(list)
+  })
+  const [showProjectsMenu, setShowProjectsMenu] = useState(false)
+  const activeProject = projects.find(p => p.id === activeProjectId) || projects[0]
+  const saved = activeProject?.composition
 
   const [roomW, setRoomW] = useState(saved?.roomW ?? 5)
   const [roomD, setRoomD] = useState(saved?.roomD ?? 4)
@@ -914,26 +999,143 @@ export default function FloorPlan3D() {
       })
   }, [])
 
-  // Sauvegarde automatique dans localStorage à chaque changement
+  // Sauvegarde automatique dans le projet actif à chaque changement
   useEffect(() => {
-    // Ne pas sauvegarder pendant le chargement initial
     if (loadingProducts) return
+    if (!activeProjectId) return
+    const composition = {
+      roomW, roomD, wallH,
+      floorType, floorPreset, floorColor, wallColor,
+      openings,
+      placedItems: placedItems.map(i => ({
+        id: i.id,
+        productId: i.product.id,
+        position: i.position,
+        rotation: i.rotation,
+      })),
+    }
+    setProjects(prev => {
+      const next = prev.map(p => p.id === activeProjectId ? { ...p, composition } : p)
+      saveProjects(next)
+      return next
+    })
+  }, [roomW, roomD, wallH, floorType, floorPreset, floorColor, wallColor, openings, placedItems, loadingProducts, activeProjectId])
+
+  // ─── Gestion projets ──────────────────────────────────────────────────────
+  const applyComposition = useCallback((composition) => {
+    if (!composition) {
+      setRoomW(5); setRoomD(4); setWallH(2.5)
+      setRoomWInput('5'); setRoomDInput('4'); setWallHInput('2.5')
+      setFloorType('parquet'); setFloorPreset('chene-clair')
+      setFloorColor('#E0E0E0'); setWallColor('#F5F3F0')
+      setOpenings([])
+      setPlacedItems([])
+      return
+    }
+    setRoomW(composition.roomW ?? 5)
+    setRoomD(composition.roomD ?? 4)
+    setWallH(composition.wallH ?? 2.5)
+    setRoomWInput(String(composition.roomW ?? 5))
+    setRoomDInput(String(composition.roomD ?? 4))
+    setWallHInput(String(composition.wallH ?? 2.5))
+    setFloorType(composition.floorType ?? 'parquet')
+    setFloorPreset(composition.floorPreset ?? 'chene-clair')
+    setFloorColor(composition.floorColor ?? '#E0E0E0')
+    setWallColor(composition.wallColor ?? '#F5F3F0')
+    setOpenings(composition.openings ?? [])
+    // Restaurer les meubles à partir du catalogue produits courant
+    const restored = (composition.placedItems || [])
+      .map(s => {
+        const product = products.find(p => p.id === s.productId)
+        if (!product) return null
+        const halfW = (product.lengthCm || 100) / 200
+        const halfD = (product.depthCm || 60) / 200
+        const { x, z } = clampToRoom(s.position[0], s.position[2], halfW, halfD, s.rotation, composition.roomW ?? 5, composition.roomD ?? 4)
+        return { id: s.id, product, position: [x, s.position[1], z], rotation: s.rotation }
+      })
+      .filter(Boolean)
+    setPlacedItems(restored)
+    setSelectedId(null)
+  }, [products])
+
+  const handleSwitchProject = (projectId) => {
+    const p = projects.find(pr => pr.id === projectId)
+    if (!p) return
+    setActiveProjectId(projectId)
+    saveActiveProjectId(projectId)
+    applyComposition(p.composition)
+    setShowProjectsMenu(false)
+  }
+
+  const handleCreateProject = () => {
+    const name = window.prompt('Nom du nouveau projet :', 'Nouveau projet')
+    if (!name) return
+    const clientName = window.prompt('Nom du client (optionnel) :', '') || ''
+    const newProject = {
+      id: 'proj-' + Date.now(),
+      name: name.trim(),
+      clientName: clientName.trim(),
+      createdAt: Date.now(),
+      composition: null,
+    }
+    const next = [...projects, newProject]
+    setProjects(next)
+    saveProjects(next)
+    setActiveProjectId(newProject.id)
+    saveActiveProjectId(newProject.id)
+    applyComposition(null)
+    setShowProjectsMenu(false)
+  }
+
+  const handleRenameProject = () => {
+    if (!activeProject) return
+    const name = window.prompt('Nouveau nom :', activeProject.name)
+    if (!name) return
+    const clientName = window.prompt('Nom du client :', activeProject.clientName || '') || ''
+    const next = projects.map(p => p.id === activeProjectId ? { ...p, name: name.trim(), clientName: clientName.trim() } : p)
+    setProjects(next)
+    saveProjects(next)
+  }
+
+  const handleDeleteProject = (projectId) => {
+    if (projects.length <= 1) {
+      window.alert('Impossible de supprimer le dernier projet.')
+      return
+    }
+    const p = projects.find(pr => pr.id === projectId)
+    if (!p) return
+    if (!window.confirm(`Supprimer "${p.name}" ? Cette action est irréversible.`)) return
+    const next = projects.filter(pr => pr.id !== projectId)
+    setProjects(next)
+    saveProjects(next)
+    if (activeProjectId === projectId) {
+      const fallback = next[0]
+      setActiveProjectId(fallback.id)
+      saveActiveProjectId(fallback.id)
+      applyComposition(fallback.composition)
+    }
+  }
+
+  // ─── Export PNG ───────────────────────────────────────────────────────────
+  const canvasWrapperRef = useRef(null)
+  const handleExportPNG = () => {
+    const wrapper = canvasWrapperRef.current
+    if (!wrapper) return
+    const canvas = wrapper.querySelector('canvas')
+    if (!canvas) return
     try {
-      const composition = {
-        roomW, roomD, wallH,
-        floorType, floorPreset, floorColor, wallColor,
-        openings,
-        // Sauvegarder uniquement les références produits (pas les objets complets)
-        placedItems: placedItems.map(i => ({
-          id: i.id,
-          productId: i.product.id,
-          position: i.position,
-          rotation: i.rotation,
-        })),
-      }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(composition))
-    } catch {}
-  }, [roomW, roomD, wallH, floorType, floorPreset, floorColor, wallColor, openings, placedItems, loadingProducts])
+      const dataURL = canvas.toDataURL('image/png')
+      const link = document.createElement('a')
+      const projectName = (activeProject?.name || 'plan-3d').replace(/[^a-z0-9-_ ]/gi, '').trim() || 'plan-3d'
+      const date = new Date().toISOString().slice(0, 10)
+      link.download = `${projectName} - ${date}.png`
+      link.href = dataURL
+      link.click()
+    } catch (err) {
+      console.error('Export PNG error:', err)
+      window.alert("Impossible d'exporter l'image. Réessaie après avoir cliqué dans la 3D.")
+    }
+  }
 
   const handlePlaceItem = (position) => {
     if (!placing) return
@@ -1327,7 +1529,17 @@ export default function FloorPlan3D() {
           }}>
             <ArrowLeft size={14} />
           </button>
-          <span style={{ color: '#fff', fontFamily: 'serif', fontSize: '16px', fontWeight: '600' }}>Plan 3D</span>
+          <button onClick={() => setShowProjectsMenu(v => !v)} style={{
+            flex: 1, margin: '0 8px', minWidth: 0,
+            background: '#1a1a1a', border: '1px solid #333', color: '#fff',
+            padding: '6px 10px', borderRadius: '6px', cursor: 'pointer',
+            fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center',
+          }}>
+            <Folder size={13} color="#FFD700" />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {activeProject?.name || 'Projet'}
+            </span>
+          </button>
           <div style={{ display: 'flex', gap: '6px' }}>
             <button onClick={() => setTopView(v => !v)} title={topView ? 'Vue 3D' : 'Vue de dessus'} style={{
               background: topView ? '#2a3a4a' : 'none', border: `1px solid ${topView ? '#4a8aa8' : '#333'}`, color: topView ? '#7ac8e8' : '#aaa',
@@ -1335,6 +1547,13 @@ export default function FloorPlan3D() {
               fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
             }}>
               <Layers size={15} />
+            </button>
+            <button onClick={handleExportPNG} title="Exporter en PNG" style={{
+              background: '#1a2a1a', border: '1px solid #2a5a2a', color: '#9ada9a',
+              padding: '6px 10px', borderRadius: '6px', cursor: 'pointer',
+              fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
+            }}>
+              <Download size={15} />
             </button>
             <button onClick={() => setDrawerOpen(!drawerOpen)} style={{
               background: drawerOpen ? '#333' : 'none', border: '1px solid #333', color: '#aaa',
@@ -1346,8 +1565,64 @@ export default function FloorPlan3D() {
           </div>
         </div>
 
+        {/* Menu projets mobile (overlay plein écran) */}
+        {showProjectsMenu && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 100,
+            backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
+            display: 'flex', flexDirection: 'column', padding: '20px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ color: '#fff', fontFamily: 'serif', fontSize: '20px', fontWeight: '600' }}>Projets</h2>
+              <button onClick={() => setShowProjectsMenu(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', padding: '4px' }}>
+                <X size={22} />
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <button onClick={handleCreateProject} style={{
+                flex: 1, background: '#0a2a0a', border: '1px solid #2a5a2a', color: '#9ada9a',
+                padding: '12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: '600',
+              }}>
+                <FolderPlus size={15} /> Nouveau
+              </button>
+              <button onClick={handleRenameProject} style={{
+                background: '#1a1a1a', border: '1px solid #333', color: '#aaa',
+                padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px',
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}>
+                <Edit2 size={14} /> Renommer
+              </button>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {projects.map(p => (
+                <div key={p.id} onClick={() => handleSwitchProject(p.id)} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  padding: '14px', marginBottom: '6px', borderRadius: '8px',
+                  backgroundColor: p.id === activeProjectId ? '#2a2a1a' : '#1a1a1a',
+                  border: `1px solid ${p.id === activeProjectId ? '#5a5a1a' : '#2a2a2a'}`,
+                  cursor: 'pointer',
+                }}>
+                  <Folder size={16} color={p.id === activeProjectId ? '#FFD700' : '#666'} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: '#ddd', fontSize: '14px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                    {p.clientName && <div style={{ color: '#666', fontSize: '12px' }}>{p.clientName}</div>}
+                  </div>
+                  {projects.length > 1 && (
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteProject(p.id) }} style={{
+                      background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: '6px', display: 'flex',
+                    }}>
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Canvas 3D plein écran */}
-        <div style={{ flex: 1, position: 'relative', cursor: placing ? 'crosshair' : 'auto' }}>
+        <div ref={canvasWrapperRef} style={{ flex: 1, position: 'relative', cursor: placing ? 'crosshair' : 'auto' }}>
           {placing && (
             <div style={{
               position: 'absolute', top: '12px', left: '50%', transform: 'translateX(-50%)',
@@ -1397,6 +1672,7 @@ export default function FloorPlan3D() {
           <Canvas
             shadows
             camera={{ position: [0, 5, 8], fov: 50 }}
+            gl={{ preserveDrawingBuffer: true }}
             style={{ backgroundColor: '#D8D4CE' }}
             onPointerMissed={() => {
               setSelectedId(null)
@@ -1459,7 +1735,7 @@ export default function FloorPlan3D() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '10px 20px', backgroundColor: '#111', borderBottom: '1px solid #222', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative' }}>
           <button onClick={() => navigate('/')} style={{
             background: 'none', border: '1px solid #333', color: '#aaa',
             padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
@@ -1467,7 +1743,83 @@ export default function FloorPlan3D() {
           }}>
             <ArrowLeft size={14} /> Accueil
           </button>
-          <span style={{ color: '#fff', fontFamily: 'serif', fontSize: '18px', fontWeight: '600' }}>Plan 3D</span>
+
+          {/* Sélecteur de projet */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowProjectsMenu(v => !v)} style={{
+              background: '#1a1a1a', border: '1px solid #333', color: '#fff',
+              padding: '7px 12px', borderRadius: '6px', cursor: 'pointer',
+              fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px',
+              maxWidth: '240px',
+            }}>
+              <Folder size={14} color="#FFD700" />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {activeProject?.name || 'Projet'}
+                {activeProject?.clientName && <span style={{ color: '#888', marginLeft: '6px' }}>· {activeProject.clientName}</span>}
+              </span>
+              <ChevronDown size={12} color="#888" />
+            </button>
+            {showProjectsMenu && (
+              <>
+                {/* Backdrop pour fermer le menu */}
+                <div onClick={() => setShowProjectsMenu(false)} style={{
+                  position: 'fixed', inset: 0, zIndex: 99,
+                }} />
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', left: 0,
+                  width: '320px', backgroundColor: '#1a1a1a',
+                  border: '1px solid #333', borderRadius: '8px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  zIndex: 100, maxHeight: '60vh', overflow: 'hidden',
+                  display: 'flex', flexDirection: 'column',
+                }}>
+                  <div style={{ padding: '8px', borderBottom: '1px solid #2a2a2a', display: 'flex', gap: '6px' }}>
+                    <button onClick={handleCreateProject} style={{
+                      flex: 1, background: '#0a2a0a', border: '1px solid #2a5a2a', color: '#9ada9a',
+                      padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                    }}>
+                      <FolderPlus size={13} /> Nouveau projet
+                    </button>
+                    <button onClick={handleRenameProject} title="Renommer" style={{
+                      background: 'none', border: '1px solid #333', color: '#aaa',
+                      padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
+                      display: 'flex', alignItems: 'center', gap: '5px',
+                    }}>
+                      <Edit2 size={12} />
+                    </button>
+                  </div>
+                  <div style={{ overflowY: 'auto', padding: '4px' }}>
+                    {projects.map(p => (
+                      <div key={p.id} style={{
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        padding: '8px 10px', borderRadius: '6px',
+                        backgroundColor: p.id === activeProjectId ? '#2a2a1a' : 'transparent',
+                        border: `1px solid ${p.id === activeProjectId ? '#5a5a1a' : 'transparent'}`,
+                        marginBottom: '2px', cursor: 'pointer',
+                      }} onClick={() => handleSwitchProject(p.id)}>
+                        <Folder size={13} color={p.id === activeProjectId ? '#FFD700' : '#555'} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: '#ddd', fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {p.name}
+                          </div>
+                          {p.clientName && <div style={{ color: '#666', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.clientName}</div>}
+                        </div>
+                        {projects.length > 1 && (
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteProject(p.id) }} style={{
+                            background: 'none', border: 'none', color: '#ff6b6b',
+                            cursor: 'pointer', padding: '4px', display: 'flex',
+                          }}>
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Dimensions + surface */}
@@ -1526,7 +1878,7 @@ export default function FloorPlan3D() {
           </div>
         )}
 
-        {/* TopView + Reset */}
+        {/* TopView + Export + Reset */}
         <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
           <button onClick={() => setTopView(v => !v)} title={topView ? 'Vue 3D' : 'Vue de dessus'} style={{
             background: topView ? '#1a2a3a' : 'none', border: `1px solid ${topView ? '#4a8aa8' : '#333'}`, color: topView ? '#7ac8e8' : '#666',
@@ -1534,6 +1886,13 @@ export default function FloorPlan3D() {
             display: 'flex', alignItems: 'center', gap: '5px',
           }}>
             <Layers size={14} /> {topView ? '3D' : '2D top'}
+          </button>
+          <button onClick={handleExportPNG} title="Télécharger une capture PNG" style={{
+            background: '#1a2a1a', border: '1px solid #2a5a2a', color: '#9ada9a',
+            padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
+            display: 'flex', alignItems: 'center', gap: '5px', fontWeight: '500',
+          }}>
+            <Download size={14} /> PNG
           </button>
           {placedItems.length > 0 && (
             <button onClick={() => { setPlacedItems([]); setSelectedId(null) }} style={{
@@ -1551,7 +1910,7 @@ export default function FloorPlan3D() {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
         {/* Canvas 3D */}
-        <div style={{ flex: 1, position: 'relative', cursor: placing ? 'crosshair' : 'auto' }}>
+        <div ref={canvasWrapperRef} style={{ flex: 1, position: 'relative', cursor: placing ? 'crosshair' : 'auto' }}>
           {placing && (
             <div style={{
               position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)',
@@ -1572,6 +1931,7 @@ export default function FloorPlan3D() {
           <Canvas
             shadows
             camera={{ position: [0, 5, 8], fov: 50 }}
+            gl={{ preserveDrawingBuffer: true }}
             style={{ backgroundColor: '#D8D4CE' }}
             onPointerMissed={() => {
               setSelectedId(null)
