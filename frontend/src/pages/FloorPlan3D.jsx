@@ -30,6 +30,26 @@ function boxesCollide(a, b) {
   return Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.z - b.z) < (a.d + b.d) / 2
 }
 
+// Clamp une position (x, z) pour qu'un meuble rectangle reste dans la pièce
+// en tenant compte de sa rotation et de l'épaisseur des murs.
+// Retourne [x, 0, z] ainsi que minX/maxX/minZ/maxZ pour le snap.
+const WALL_HALF_T = 0.025 // demi-épaisseur du mur (wallT=0.05)
+function clampToRoom(px, pz, halfW, halfD, rotation, roomW, roomD) {
+  const cos = Math.abs(Math.cos(rotation))
+  const sin = Math.abs(Math.sin(rotation))
+  const effW = halfW * cos + halfD * sin
+  const effD = halfW * sin + halfD * cos
+  const minX = -roomW / 2 + WALL_HALF_T + effW
+  const maxX = roomW / 2 - WALL_HALF_T - effW
+  const minZ = -roomD / 2 + WALL_HALF_T + effD
+  const maxZ = roomD / 2 - effD // pas de mur avant
+  return {
+    x: Math.max(minX, Math.min(maxX, px)),
+    z: Math.max(minZ, Math.min(maxZ, pz)),
+    minX, maxX, minZ, maxZ,
+  }
+}
+
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < breakpoint)
   useEffect(() => {
@@ -424,25 +444,15 @@ function PrimitiveFurniture({ item, isSelected, onSelect, onMove, roomW, roomD, 
   const { gl } = useThree()
 
   const clampPosition = useCallback((px, pz) => {
-    const cos = Math.abs(Math.cos(item.rotation))
-    const sin = Math.abs(Math.sin(item.rotation))
-    const effectiveHalfW = halfW * cos + halfD * sin
-    const effectiveHalfD = halfW * sin + halfD * cos
-    // wallHalfT = demi-épaisseur des murs (wallT=0.05 → 0.025) pour éviter
-    // que le meuble traverse la face intérieure du mur.
-    const wallHalfT = 0.025
-    const minX = -roomW / 2 + wallHalfT + effectiveHalfW
-    const maxX = roomW / 2 - wallHalfT - effectiveHalfW
-    const minZ = -roomD / 2 + wallHalfT + effectiveHalfD
-    const maxZ = roomD / 2 - effectiveHalfD // pas de mur avant
-    let x = Math.max(minX, Math.min(maxX, px))
-    let z = Math.max(minZ, Math.min(maxZ, pz))
+    const { x, z, minX, maxX, minZ, maxZ } = clampToRoom(px, pz, halfW, halfD, item.rotation, roomW, roomD)
+    // Snap au mur (30cm)
     const snapDist = 0.3
-    if (Math.abs(x - minX) < snapDist) x = minX
-    if (Math.abs(x - maxX) < snapDist) x = maxX
-    if (Math.abs(z - minZ) < snapDist) z = minZ
-    if (Math.abs(z - maxZ) < snapDist) z = maxZ
-    return [x, 0, z]
+    let sx = x, sz = z
+    if (Math.abs(x - minX) < snapDist) sx = minX
+    if (Math.abs(x - maxX) < snapDist) sx = maxX
+    if (Math.abs(z - minZ) < snapDist) sz = minZ
+    if (Math.abs(z - maxZ) < snapDist) sz = maxZ
+    return [sx, 0, sz]
   }, [item.rotation, halfW, halfD, roomW, roomD])
 
   const handedness = item.product.primitiveType === 'angle-sofa-left' ? 'left' : 'right'
@@ -522,23 +532,14 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitE
 
   // Position clampée + snap au mur (à 30cm), en tenant compte de l'épaisseur des murs
   const clampPosition = useCallback((px, pz) => {
-    const cos = Math.abs(Math.cos(item.rotation))
-    const sin = Math.abs(Math.sin(item.rotation))
-    const effectiveHalfW = halfW * cos + halfD * sin
-    const effectiveHalfD = halfW * sin + halfD * cos
-    const wallHalfT = 0.025
-    const minX = -roomW / 2 + wallHalfT + effectiveHalfW
-    const maxX = roomW / 2 - wallHalfT - effectiveHalfW
-    const minZ = -roomD / 2 + wallHalfT + effectiveHalfD
-    const maxZ = roomD / 2 - effectiveHalfD // pas de mur avant
-    let x = Math.max(minX, Math.min(maxX, px))
-    let z = Math.max(minZ, Math.min(maxZ, pz))
+    const { x, z, minX, maxX, minZ, maxZ } = clampToRoom(px, pz, halfW, halfD, item.rotation, roomW, roomD)
     const snapDist = 0.3
-    if (Math.abs(x - minX) < snapDist) x = minX
-    if (Math.abs(x - maxX) < snapDist) x = maxX
-    if (Math.abs(z - minZ) < snapDist) z = minZ
-    if (Math.abs(z - maxZ) < snapDist) z = maxZ
-    return [x, 0, z]
+    let sx = x, sz = z
+    if (Math.abs(x - minX) < snapDist) sx = minX
+    if (Math.abs(x - maxX) < snapDist) sx = maxX
+    if (Math.abs(z - minZ) < snapDist) sz = minZ
+    if (Math.abs(z - maxZ) < snapDist) sz = maxZ
+    return [sx, 0, sz]
   }, [item.rotation, halfW, halfD, roomW, roomD])
 
   return (
@@ -621,8 +622,9 @@ function Scene({ roomW, roomD, wallH, placedItems, selectedId, onSelectItem, onM
   const handleFloorClick = (e) => {
     if (placing) {
       e.stopPropagation()
-      const x = Math.max(-roomW / 2 + 0.3, Math.min(roomW / 2 - 0.3, e.point.x))
-      const z = Math.max(-roomD / 2 + 0.3, Math.min(roomD / 2 - 0.3, e.point.z))
+      const halfW = (placing.lengthCm || 100) / 200
+      const halfD = (placing.depthCm || 60) / 200
+      const { x, z } = clampToRoom(e.point.x, e.point.z, halfW, halfD, 0, roomW, roomD)
       onPlaceItem([x, 0, z])
     } else {
       onSelectItem(null)
@@ -881,15 +883,23 @@ export default function FloorPlan3D() {
         setProducts(validProducts)
         setLoadingProducts(false)
         // Restaurer les meubles sauvegardés en récupérant les produits actuels
+        // + re-clamp au cas où d'anciennes compositions traverseraient les murs
         if (savedItemsRef.current.length > 0) {
           const restored = savedItemsRef.current
             .map(saved => {
               const product = validProducts.find(p => p.id === saved.productId)
               if (!product) return null
+              const halfW = (product.lengthCm || 100) / 200
+              const halfD = (product.depthCm || 60) / 200
+              const { x, z } = clampToRoom(
+                saved.position[0], saved.position[2],
+                halfW, halfD, saved.rotation,
+                roomW, roomD
+              )
               return {
                 id: saved.id,
                 product,
-                position: saved.position,
+                position: [x, saved.position[1], z],
                 rotation: saved.rotation,
               }
             })
@@ -934,11 +944,20 @@ export default function FloorPlan3D() {
     if (isMobile) setDrawerOpen(false)
   }
 
+  // Re-clamp la position d'un item après un changement de rotation
+  // pour éviter qu'il traverse un mur quand son encombrement effectif change.
+  const applyRotation = (item, newRotation) => {
+    const halfW = (item.product.lengthCm || 100) / 200
+    const halfD = (item.product.depthCm || 60) / 200
+    const { x, z } = clampToRoom(item.position[0], item.position[2], halfW, halfD, newRotation, roomW, roomD)
+    return { ...item, rotation: newRotation, position: [x, item.position[1], z] }
+  }
+
   // Rotation : valeur en degrés (0-360) avec snap à 15°
   const handleRotateBy = (deltaDegrees) => {
     if (!selectedId) return
     setPlacedItems(prev => prev.map(i => i.id === selectedId
-      ? { ...i, rotation: snapAngle(i.rotation + (deltaDegrees * Math.PI / 180)) }
+      ? applyRotation(i, snapAngle(i.rotation + (deltaDegrees * Math.PI / 180)))
       : i
     ))
   }
@@ -946,7 +965,7 @@ export default function FloorPlan3D() {
   const handleSetRotation = (degrees) => {
     if (!selectedId) return
     setPlacedItems(prev => prev.map(i => i.id === selectedId
-      ? { ...i, rotation: snapAngle(degrees * Math.PI / 180) }
+      ? applyRotation(i, snapAngle(degrees * Math.PI / 180))
       : i
     ))
   }
@@ -1375,7 +1394,16 @@ export default function FloorPlan3D() {
             />
           )}
 
-          <Canvas shadows camera={{ position: [0, 5, 8], fov: 50 }} style={{ backgroundColor: '#D8D4CE' }}>
+          <Canvas
+            shadows
+            camera={{ position: [0, 5, 8], fov: 50 }}
+            style={{ backgroundColor: '#D8D4CE' }}
+            onPointerMissed={() => {
+              setSelectedId(null)
+              setSelectedOpeningId(null)
+              if (placing) setPlacing(null)
+            }}
+          >
             <Scene
               roomW={roomW} roomD={roomD} wallH={wallH}
               placedItems={placedItems} selectedId={selectedId}
@@ -1541,7 +1569,16 @@ export default function FloorPlan3D() {
               isMobile={false}
             />
           )}
-          <Canvas shadows camera={{ position: [0, 5, 8], fov: 50 }} style={{ backgroundColor: '#D8D4CE' }}>
+          <Canvas
+            shadows
+            camera={{ position: [0, 5, 8], fov: 50 }}
+            style={{ backgroundColor: '#D8D4CE' }}
+            onPointerMissed={() => {
+              setSelectedId(null)
+              setSelectedOpeningId(null)
+              if (placing) setPlacing(null)
+            }}
+          >
             <Scene
               roomW={roomW} roomD={roomD} wallH={wallH}
               placedItems={placedItems} selectedId={selectedId}
