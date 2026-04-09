@@ -446,12 +446,19 @@ function PrimitiveFurniture({ item, isSelected, onSelect, onMove, roomW, roomD, 
       rotation={[0, item.rotation, 0]}
       onPointerDown={e => {
         e.stopPropagation()
+        e.target.setPointerCapture?.(e.pointerId)
         isDragging.current = true
         onSelect(item.id)
         setOrbitEnabled(false)
         gl.domElement.style.cursor = 'grabbing'
       }}
-      onPointerUp={() => {
+      onPointerUp={e => {
+        e.target.releasePointerCapture?.(e.pointerId)
+        isDragging.current = false
+        setOrbitEnabled(true)
+        gl.domElement.style.cursor = 'auto'
+      }}
+      onPointerCancel={() => {
         isDragging.current = false
         setOrbitEnabled(true)
         gl.domElement.style.cursor = 'auto'
@@ -464,14 +471,15 @@ function PrimitiveFurniture({ item, isSelected, onSelect, onMove, roomW, roomD, 
       }}
     >
       {(isSelected || hasCollision) && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} raycast={() => null}>
           <ringGeometry args={[Math.max(halfW, halfD) * 0.95, Math.max(halfW, halfD) * 1.05, 48]} />
           <meshBasicMaterial color={hasCollision ? '#FF4444' : '#FFD700'} transparent opacity={0.9} />
         </mesh>
       )}
-      {/* Collider invisible rectangulaire pour la sélection */}
-      <mesh visible={false} position={[0, 0.4, 0]}>
+      {/* Hit box transparente pour capter les clics sur tout le footprint (inclut le "trou" du L) */}
+      <mesh position={[0, 0.4, 0]}>
         <boxGeometry args={[halfW * 2, 0.85, halfD * 2]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
       <AngleSofaMesh handedness={handedness} />
     </group>
@@ -526,12 +534,19 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitE
       rotation={[0, item.rotation, 0]}
       onPointerDown={e => {
         e.stopPropagation()
+        e.target.setPointerCapture?.(e.pointerId)
         isDragging.current = true
         onSelect(item.id)
         setOrbitEnabled(false)
         gl.domElement.style.cursor = 'grabbing'
       }}
-      onPointerUp={() => {
+      onPointerUp={e => {
+        e.target.releasePointerCapture?.(e.pointerId)
+        isDragging.current = false
+        setOrbitEnabled(true)
+        gl.domElement.style.cursor = 'auto'
+      }}
+      onPointerCancel={() => {
         isDragging.current = false
         setOrbitEnabled(true)
         gl.domElement.style.cursor = 'auto'
@@ -544,14 +559,15 @@ function Furniture({ item, isSelected, onSelect, onMove, roomW, roomD, setOrbitE
       }}
     >
       {(isSelected || hasCollision) && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} raycast={() => null}>
           <ringGeometry args={[Math.max(halfW, halfD) * 0.95, Math.max(halfW, halfD) * 1.05, 32]} />
           <meshBasicMaterial color={hasCollision ? '#FF4444' : '#FFD700'} transparent opacity={0.9} />
         </mesh>
       )}
-      {/* Collider invisible plus grand pour faciliter la sélection */}
-      <mesh visible={false} position={[0, 0.6, 0]}>
+      {/* Hit box transparente pour capter les clics même dans les zones vides du GLB */}
+      <mesh position={[0, 0.6, 0]}>
         <boxGeometry args={[halfW * 2 + 0.1, 1.2, halfD * 2 + 0.1]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
       <primitive object={cloned} scale={scale} position={[0, yOffset, 0]} />
     </group>
