@@ -100,6 +100,21 @@ const styles = {
   },
 }
 
+// Composant Field défini en dehors du render pour éviter la perte de focus
+function Field({ id, label, required, error, hint, children }) {
+  return (
+    <div style={styles.fieldGroup}>
+      <label htmlFor={id} style={styles.label}>
+        {label}
+        {required && <span style={styles.required} aria-label="requis">*</span>}
+      </label>
+      {children}
+      {error && <span style={styles.errorText} role="alert">{error}</span>}
+      {hint && !error && <span style={styles.hint}>{hint}</span>}
+    </div>
+  )
+}
+
 export default function AdminProductForm({ product, adminPassword, onSave, onCancel }) {
   const isEditing = Boolean(product)
 
@@ -184,18 +199,6 @@ export default function AdminProductForm({ product, adminPassword, onSave, onCan
       setSaving(false)
     }
   }
-
-  const Field = ({ id, label, required, error, hint, children }) => (
-    <div style={styles.fieldGroup}>
-      <label htmlFor={id} style={styles.label}>
-        {label}
-        {required && <span style={styles.required} aria-label="requis">*</span>}
-      </label>
-      {children}
-      {error && <span style={styles.errorText} role="alert">{error}</span>}
-      {hint && !error && <span style={styles.hint}>{hint}</span>}
-    </div>
-  )
 
   return (
     <div style={styles.container}>
